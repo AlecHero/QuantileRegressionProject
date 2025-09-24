@@ -1,9 +1,0 @@
-spørgsmål
-
-Nu har jeg implemeneteret en tabulær version af qlæring og quantile regression på både clif environmentet og windy rooms environment fra paperet, dog uden overhovedet at bruge torch, (fulgte bare gymnasiums hjemmeside, osv.)
-
-1. Jeg kan se at det i praksis er umuligt (medmindre mit Windy environment er dårligt) at lave den samme test som i paper med samme parametere med min tabulære implementation (uden torch eller andet) da det tog 5 timer bare at køre 129/10_000 episoder.
-
-2. Jeg har i min quantile regression implementation ændret i quantile regression formlen der hvor huber /ddirac kræver at man tager den absolutte værdi, hvor jeg har fjernet det, tror evt det har at gøre med at jeg bruge en negativ reward i Cliff env? Fordi hvis ikke jeg gjorde det eksploderede værdierne hurtigt i størrelse.
-
-3. 

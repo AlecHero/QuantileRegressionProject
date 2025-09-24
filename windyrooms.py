@@ -1,15 +1,8 @@
-from contextlib import closing
-from io import StringIO
-from os import path
 from typing import Any
-
 import numpy as np
 
-import gymnasium as gym
-from gymnasium import Env, spaces
-from gymnasium.envs.toy_text.utils import categorical_sample
-from gymnasium.error import DependencyNotInstalled
-
+from gymnasium import spaces
+from cliffcustom import CliffCustomEnv
 
 UP = 0
 RIGHT = 1
@@ -19,12 +12,7 @@ LEFT = 3
 POSITION_MAPPING = {UP: [-1, 0], RIGHT: [0, 1], DOWN: [1, 0], LEFT: [0, -1]}
 
 
-class WindyRoomsEnv(Env):
-    metadata = {
-        "render_modes": ["human", "rgb_array", "ansi"],
-        "render_fps": 4,
-    }
-
+class WindyRoomsEnv(CliffCustomEnv):
     def __init__(self, render_mode: str | None = None, p_random: float = 0.1, shape=(14, 10), step_reward: int = -1, goal_reward: int = 10):
         self.p_random = p_random
         self.shape = shape
@@ -82,14 +70,6 @@ class WindyRoomsEnv(Env):
         self.near_cliff_img = None
         self.tree_img = None
 
-    def _limit_coordinates(self, coord: np.ndarray) -> np.ndarray:
-        """Prevent the agent from falling out of the grid world."""
-        coord[0] = min(coord[0], self.shape[0] - 1)
-        coord[0] = max(coord[0], 0)
-        coord[1] = min(coord[1], self.shape[1] - 1)
-        coord[1] = max(coord[1], 0)
-        return coord
-
     def _get_wind_state(self, state: int) -> int:
         position = np.unravel_index(state, self.shape)
         winded_position = position + np.array(POSITION_MAPPING[UP]) * self._wind[tuple(position)]
@@ -137,166 +117,3 @@ class WindyRoomsEnv(Env):
                     outcomes.append((1.0 - self.p_random, self._get_wind_state(new_state), self.step_reward, False))
         
         return outcomes
-
-    def step(self, a):
-        transitions = self.P[self.s][a]
-        i = categorical_sample([t[0] for t in transitions], self.np_random)
-        p, s, r, t = transitions[i]
-        self.s = s
-        self.lastaction = a
-
-        if self.render_mode == "human":
-            self.render()
-        # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
-        return int(s), r, t, False, {"prob": p}
-
-    def reset(self, *, seed: int | None = None, options: dict | None = None):
-        super().reset(seed=seed)
-        self.s = categorical_sample(self.initial_state_distrib, self.np_random)
-        self.lastaction = None
-
-        if self.render_mode == "human":
-            self.render()
-        return int(self.s), {"prob": 1}
-
-    def render(self):
-        if self.render_mode is None:
-            assert self.spec is not None
-            gym.logger.warn(
-                "You are calling render method without specifying any render mode. "
-                "You can specify the render_mode at initialization, "
-                f'e.g. gym.make("{self.spec.id}", render_mode="rgb_array")'
-            )
-            return
-
-        if self.render_mode == "ansi":
-            return self._render_text()
-        else:
-            return self._render_gui(self.render_mode)
-
-    def _render_gui(self, mode):
-        try:
-            import pygame
-        except ImportError as e:
-            raise DependencyNotInstalled(
-                'pygame is not installed, run `pip install "gymnasium[toy-text]"`'
-            ) from e
-        if self.window_surface is None:
-            pygame.init()
-
-            if mode == "human":
-                pygame.display.init()
-                pygame.display.set_caption("CliffWalking")
-                self.window_surface = pygame.display.set_mode(self.window_size)
-            else:  # rgb_array
-                self.window_surface = pygame.Surface(self.window_size)
-        if self.clock is None:
-            self.clock = pygame.time.Clock()
-        if self.elf_images is None:
-            hikers = [
-                path.join(path.dirname(__file__), "img/elf_up.png"),
-                path.join(path.dirname(__file__), "img/elf_right.png"),
-                path.join(path.dirname(__file__), "img/elf_down.png"),
-                path.join(path.dirname(__file__), "img/elf_left.png"),
-            ]
-            self.elf_images = [
-                pygame.transform.scale(pygame.image.load(f_name), self.cell_size)
-                for f_name in hikers
-            ]
-        if self.start_img is None:
-            file_name = path.join(path.dirname(__file__), "img/stool.png")
-            self.start_img = pygame.transform.scale(
-                pygame.image.load(file_name), self.cell_size
-            )
-        if self.goal_img is None:
-            file_name = path.join(path.dirname(__file__), "img/cookie.png")
-            self.goal_img = pygame.transform.scale(
-                pygame.image.load(file_name), self.cell_size
-            )
-        if self.mountain_bg_img is None:
-            bg_imgs = [
-                path.join(path.dirname(__file__), "img/mountain_bg1.png"),
-                path.join(path.dirname(__file__), "img/mountain_bg2.png"),
-            ]
-            self.mountain_bg_img = [
-                pygame.transform.scale(pygame.image.load(f_name), self.cell_size)
-                for f_name in bg_imgs
-            ]
-        if self.near_cliff_img is None:
-            near_cliff_imgs = [
-                path.join(path.dirname(__file__), "img/mountain_near-cliff1.png"),
-                path.join(path.dirname(__file__), "img/mountain_near-cliff2.png"),
-            ]
-            self.near_cliff_img = [
-                pygame.transform.scale(pygame.image.load(f_name), self.cell_size)
-                for f_name in near_cliff_imgs
-            ]
-        if self.cliff_img is None:
-            file_name = path.join(path.dirname(__file__), "img/mountain_cliff.png")
-            self.cliff_img = pygame.transform.scale(
-                pygame.image.load(file_name), self.cell_size
-            )
-
-        for s in range(self.nS):
-            row, col = np.unravel_index(s, self.shape)
-            pos = (col * self.cell_size[0], row * self.cell_size[1])
-            check_board_mask = row % 2 ^ col % 2
-            self.window_surface.blit(self.mountain_bg_img[check_board_mask], pos)
-
-            if row < self.shape[0] - 1 and self._cliff[row + 1, col]:
-                self.window_surface.blit(self.near_cliff_img[check_board_mask], pos)
-            if self._cliff[row, col]:
-                self.window_surface.blit(self.cliff_img, pos)
-            if s == self.start_state_index:
-                self.window_surface.blit(self.start_img, pos)
-            if s == self.nS - 1:
-                self.window_surface.blit(self.goal_img, pos)
-            if s == self.s:
-                elf_pos = (pos[0], pos[1] - 0.1 * self.cell_size[1])
-                last_action = self.lastaction if self.lastaction is not None else 2
-                self.window_surface.blit(self.elf_images[last_action], elf_pos)
-
-        if mode == "human":
-            pygame.event.pump()
-            pygame.display.update()
-            self.clock.tick(self.metadata["render_fps"])
-        else:  # rgb_array
-            return np.transpose(
-                np.array(pygame.surfarray.pixels3d(self.window_surface)), axes=(1, 0, 2)
-            )
-
-    def _render_text(self):
-        outfile = StringIO()
-
-        for s in range(self.nS):
-            position = np.unravel_index(s, self.shape)
-            if self.s == s:
-                output = " x "
-            # Print terminal state
-            elif position == (self.shape[0] - 1, self.shape[1] - 1):
-                output = " T "
-            elif self._cliff[position]:
-                output = " C "
-            elif self._wind[position]:
-                output = f" {self._wind[position]} "
-            else:
-                output = " o "
-
-            if position[1] == 0:
-                output = output.lstrip()
-            if position[1] == self.shape[1] - 1:
-                output = output.rstrip()
-                output += "\n"
-
-            outfile.write(output)
-        outfile.write("\n")
-
-        with closing(outfile):
-            return outfile.getvalue()
-
-    def close(self):
-        if self.window_surface is not None:
-            import pygame
-
-            pygame.display.quit()
-            pygame.quit()

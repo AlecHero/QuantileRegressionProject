@@ -1,0 +1,7 @@
+todo quantile:
+- fix med gradient loss (og ikke bare loss)
+- sørg for at det kan køre på laptop (python 3.10 + venv)
+- kør alle test med højere episodes og med faldende learning rate og gem qtable hver 100 episode eller lign. hvorefter der skal køres en masse tests på den "optimale policy" nok uden exploration til at starte med (bare den naturlige prob fra env) (og med gamma?) så der kan laves et final plot til sammenligning (bar plot) som skulle fortælle noget om fordelingen.
+- prøv at lave pdf's fra cdf'erne ved kernel density estimation?
+- prøv at køre på windy rooms env igen med ny loss
+- tjek den løbende udvikling af qtables (pr 100 ep) for at se at der er et trend mod konvergens eller ej for at sikre der bliver trænet nok episoder.
