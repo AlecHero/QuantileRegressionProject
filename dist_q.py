@@ -1,11 +1,11 @@
 import numpy as np
 
 class Qlearning:
-    def __init__(self, learning_rate, gamma, state_size, action_size):
-        self.state_size = state_size
-        self.action_size = action_size
-        self.learning_rate = learning_rate
-        self.gamma = gamma
+    def __init__(self, params):
+        self.state_size = params.state_size
+        self.action_size = params.action_size
+        self.learning_rate = params.learning_rate
+        self.gamma = params.gamma
         self.reset_table()
 
     def update(self, state, action, reward, new_state):
@@ -35,15 +35,15 @@ def huber(x, k=1.0):
 
 
 class QuantileRegression:
-    def __init__(self, learning_rate, gamma, state_size, action_size, n_quantiles):
-        self.learning_rate = learning_rate
-        self.gamma = gamma
-        self.state_size = state_size
-        self.action_size = action_size
-        self.n_quantiles = n_quantiles
+    def __init__(self, params):
+        self.learning_rate = params.learning_rate
+        self.gamma = params.gamma
+        self.state_size = params.state_size
+        self.action_size = params.action_size
+        self.n_quantiles = params.n_quantiles
         self.reset_table()
         
-        self.tau = ((2 * np.arange(n_quantiles) + 1) / (2.0 * n_quantiles))
+        self.tau = ((2 * np.arange(self.n_quantiles) + 1) / (2.0 * self.n_quantiles))
 
     def update(self, state, action, reward, new_state):
         delta = (

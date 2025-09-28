@@ -2,19 +2,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+ARROW_DIRECTIONS = {0: "↑", 1: "→", 2: "↓", 3: "←"}
+
+def get_tau(n_quantiles): return ((2 * np.arange(n_quantiles) + 1) / (2.0 * n_quantiles))
+
 def qtable_directions_map(qtable, map_size):
     """Get the best learned action & map it to arrows."""
     qtable_val_max = qtable.max(axis=1).reshape(map_size)
     qtable_best_action = qtable.argmax(1).reshape(map_size)
     qtable_directions = np.empty(qtable_best_action.flatten().shape, dtype=str)
-    arrow_directions = {0: "↑", 1: "→", 2: "↓", 3: "←"}
     
     for idx, val in enumerate(qtable_best_action.flatten()):
         if not np.allclose(qtable[idx], 0.0):
             # Assign an arrow only if a minimal Q-value has been learned as best action
             # otherwise since 0 is a direction, it also gets mapped on the tiles where
             # it didn't actually learn anything
-            qtable_directions[idx] = arrow_directions[val]
+            qtable_directions[idx] = ARROW_DIRECTIONS[val]
     qtable_directions = qtable_directions.reshape(map_size)
     return qtable_val_max, qtable_directions
 
@@ -59,3 +62,53 @@ def plot_states_actions_distribution(states, actions, map_size):
     ax[1].set_title("Actions")
     fig.tight_layout()
     plt.show()
+
+
+### NEWER
+
+def plot_mean_convergence(qtables, ylim=(-0.1,2)):
+    mean_Qs = qtables[:,:37].mean(1)
+    delta_Q = np.abs(mean_Qs[1:] - mean_Qs[:-1])
+    for a in range(4):
+        plt.plot(delta_Q[:,a])
+    plt.xlabel("Episode")
+    plt.ylabel("Mean Q-value change")
+    plt.title("Q-value convergence")
+    plt.ylim(ylim)
+    plt.show()
+
+def plot_state_convergence(qtables, state=36):
+    from matplotlib.ticker import StrMethodFormatter
+    x = np.arange(qtables.shape[0]) * 100
+    for action in range(4):
+        plt.plot(x, qtables[:,state,action], label=f"{ARROW_DIRECTIONS[action]}")
+    plt.xlabel("Episode")
+    plt.ylabel("Max Q-value (averaged over states)")
+    plt.title("Q-value evolution")
+    plt.legend()
+    plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
+    plt.show()
+
+from ipywidgets import interact, IntSlider
+from IPython.display import clear_output
+
+def _qr_episodes(tables, params, episode, state):
+    # clear_output(wait=True)
+    plt.figure(figsize=(6,4))
+    
+    tau = get_tau(params.n_quantiles)
+    
+    for j, action_quantiles in enumerate(tables[episode, state]):
+        dq_dtau = np.gradient(action_quantiles, tau)
+        pdf = 1.0 / np.abs(dq_dtau)
+        plt.plot(action_quantiles, pdf, label=f"action: {ARROW_DIRECTIONS[j]}")
+    
+    plt.xlabel("Reward (x)")
+    plt.ylabel("PDF f(x)")
+    plt.title(f"Episode {episode*100}")
+    plt.legend()
+    plt.show()
+
+def qr_display_episodes(tables, params, state=36):
+    slide_func = lambda episode: _qr_episodes(tables, params, episode, state=state)
+    interact(slide_func, episode=IntSlider(min=0, max=tables.shape[0]-1, step=1, value=0))
