@@ -30,8 +30,12 @@ class Qlearning:
     def set_learning_rate(self, learning_rate):
         self.learning_rate = learning_rate
 
-def huber(x, k=1.0):
-    return np.where(np.abs(x) < k, 0.5 * np.power(x, 2), k * (np.abs(x) - 0.5 * k))
+def huber(u, k=1.0):
+    return np.where(np.abs(u) < k, 0.5 * np.power(u, 2), k * (np.abs(u) - 0.5 * k))
+
+
+def du_huber(u, k=1.0):
+    return np.where(np.abs(u) < k, 1.0, k*np.sign(u))
 
 
 class QuantileRegression:
@@ -46,12 +50,12 @@ class QuantileRegression:
         self.tau = ((2 * np.arange(self.n_quantiles) + 1) / (2.0 * self.n_quantiles))
 
     def update(self, state, action, reward, new_state):
-        delta = (
-            reward
-            + self.gamma * self.theta[new_state, self.theta[new_state].mean(1).argmax()] # Ttheta
-            - self.theta[state, action]
-        )
-        self.theta[state, action] += self.learning_rate * (self.tau - (delta < 0)) * huber(delta)
+        pred_quantiles = self.theta[state, action]
+        greedy_action = self.theta[new_state].mean(1).argmax()
+        Ttheta = reward + self.gamma * self.theta[new_state, greedy_action]
+        u = Ttheta - pred_quantiles
+        
+        self.theta[state, action] += self.learning_rate * (self.tau - (u < 0)) * du_huber(u)
 
     def reset_table(self):
         """Reset the theta values."""

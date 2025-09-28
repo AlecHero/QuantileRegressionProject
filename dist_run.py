@@ -20,11 +20,12 @@ class Params(NamedTuple):
     state_size: int  # Number of possible states
     n_quantiles: int  # Number of quantiles
     use_lr_decay: bool # Use learning rate decay 1/2 every 2_000 episodes
+    save_skip: int
 
 
 def run_env(env, learner, explorer, params):
     episodes = np.arange(params.total_episodes)
-    all_tables = np.zeros((params.n_runs, params.total_episodes//100, params.state_size, params.action_size, params.n_quantiles))
+    all_tables = np.zeros((params.n_runs, params.total_episodes//params.save_skip, params.state_size, params.action_size, params.n_quantiles))
 
     lr = params.learning_rate
     for run in range(params.n_runs):
@@ -46,8 +47,8 @@ def run_env(env, learner, explorer, params):
                 learner.update(state, action, reward, new_state)
                 state = new_state
             
-            if episode % 100 == 0:
-                all_tables[run][episode//100] = learner.get_table()
+            if episode % params.save_skip == 0:
+                all_tables[run][episode//params.save_skip] = learner.get_table()
     return all_tables
 
 def save_experiment(tables, params):
