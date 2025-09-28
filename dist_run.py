@@ -20,7 +20,8 @@ class Params(NamedTuple):
     state_size: int  # Number of possible states
     n_quantiles: int  # Number of quantiles
     use_lr_decay: bool # Use learning rate decay 1/2 every 2_000 episodes
-    save_skip: int
+    save_skip: int # How many episodes to skip between each save
+    huber_k: float # K parameter in huber loss
 
 
 def run_env(env, learner, explorer, params):
