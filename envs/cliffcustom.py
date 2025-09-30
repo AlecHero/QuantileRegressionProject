@@ -1,7 +1,6 @@
 from typing import Any
 import numpy as np
 
-from os import path
 from gymnasium.error import DependencyNotInstalled
 
 from gymnasium import spaces

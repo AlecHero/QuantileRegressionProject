@@ -105,10 +105,60 @@ def _qr_episodes(tables, params, episode, state):
     
     plt.xlabel("Reward (x)")
     plt.ylabel("PDF f(x)")
-    plt.title(f"Episode {episode*100}")
+    plt.title(f"Episode {episode*params.save_skip}")
     plt.legend()
     plt.show()
 
 def qr_display_episodes(tables, params, state=36):
     slide_func = lambda episode: _qr_episodes(tables, params, episode, state=state)
     interact(slide_func, episode=IntSlider(min=0, max=tables.shape[0]-1, step=1, value=0))
+
+
+def qr_pdf_kde(action_quantiles, bandwidth=0.5):
+    from sklearn.neighbors import KernelDensity
+    samples = action_quantiles[:, None]
+    kde = KernelDensity(kernel="gaussian", bandwidth=bandwidth).fit(samples)
+    log_pdf = kde.score_samples(samples)
+    pdf = np.exp(log_pdf)
+    return samples[:,0], pdf
+
+def _qr_episodes_kde(tables, params, episode, state, action, bandwidth=0.1):
+    plt.figure(figsize=(6,4))
+    
+    x, pdf = qr_pdf_kde(tables[episode, state, action], bandwidth=bandwidth)
+    plt.plot(x, pdf)
+    plt.fill_between(x, pdf, alpha=0.5)
+    plt.show()
+
+def qr_display_episodes_kde(tables, params, state=36, action=0):
+    slide_func = lambda episode: _qr_episodes_kde(tables, params, episode, state, action)
+    interact(slide_func, episode=IntSlider(min=0, max=tables.shape[0]-1, step=1, value=0))
+
+
+def plot_cdf_states(tables, params, states=[(3, 0), (2, 0), (2, 10), (2, 11)]):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    sns.set_theme()
+    tau = ((2 * np.arange(params.n_quantiles) + 1) / (2.0 * params.n_quantiles))
+    arrow_directions = {0: "↑", 1: "→", 2: "↓", 3: "←"}
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    axes = axes.flatten()
+
+    for i, pos in enumerate(states):
+        ax = axes[i]
+        state = np.ravel_multi_index(pos, params.map_size)
+
+        for j, quantiles in enumerate(tables[-1,state]):
+            ax.plot(quantiles, tau, label=f"action: {arrow_directions[j]}")
+
+        ax.set_title(f"Learned Quantiles for Position: {pos}")
+        ax.set_xlabel("Space of Returns")
+        ax.set_ylabel("Probability Space")
+        ax.set_yticks(tau[::5])
+        ax.legend()
+
+    plt.tight_layout()
+    plt.show()

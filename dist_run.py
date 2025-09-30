@@ -29,6 +29,7 @@ def run_env(env, learner, explorer, params):
     all_tables = np.zeros((params.n_runs, params.total_episodes//params.save_skip, params.state_size, params.action_size, params.n_quantiles))
 
     lr = params.learning_rate
+    seeds = np.random.SeedSequence(params.seed).spawn(params.n_runs)
     for run in range(params.n_runs):
         learner.reset_table()
         for episode in tqdm(episodes, desc=f"Run {run}/{params.n_runs} - Episodes"):
@@ -36,7 +37,7 @@ def run_env(env, learner, explorer, params):
                 lr *= 0.5
                 learner.set_learning_rate(lr)
             
-            state = env.reset(seed=params.seed)[0]
+            state = env.reset(seed=seeds[run])[0]
             done = False
 
             while not done:
@@ -62,7 +63,15 @@ def save_experiment(tables, params):
         json.dump(params._asdict(), f, indent=4)
 
 
-def load_experiment(experiment_name):
+def load_experiment(experiment_name=None):
+    if experiment_name is None:
+        import os
+        experiments_dir = "experiments/"
+        experiment_name = max(
+            (d for d in os.listdir(experiments_dir) if os.path.isdir(os.path.join(experiments_dir, d))),
+            key=lambda d: os.path.getctime(os.path.join(experiments_dir, d))
+        )
+    
     exp_dir = Path(f"experiments/{experiment_name}")
     params = Params(**json.load(open(exp_dir / "params.json", "r")))
     

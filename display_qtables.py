@@ -13,7 +13,7 @@ def value_to_color(v, vmin=-1, vmax=1):
         return (int(255 * -v / -vmin), 0, 0)  # red scale
 
 
-def draw_state(screen, x, y, qvals, vmin, vmax, GRID_SIZE):
+def draw_state(screen, x, y, qvals, vmin, vmax, GRID_SIZE, decimals=0):
     cx, cy = x * GRID_SIZE, y * GRID_SIZE
     half = GRID_SIZE // 2
 
@@ -33,13 +33,13 @@ def draw_state(screen, x, y, qvals, vmin, vmax, GRID_SIZE):
         pygame.draw.polygon(screen, (0,0,0), pts, 1)
 
         ox, oy = offsets[a]
-        text = font.render(f"{val:.0f}", True, (255,255,255))
+        text = font.render(f"{val:.{decimals}f}", True, (255,255,255))
         rect = text.get_rect(center=(cx+half+ox, cy+half+oy))
         screen.blit(text, rect)
 
 
-def display_qtables(qtables, params):
-    GRID_SIZE = 80
+def display_qtables(qtables, params, decimals=0, grid_size=80):
+    GRID_SIZE = grid_size
     GRID_W, GRID_H = params.map_size
     ACTIONS = [0, 1, 2, 3]
     FPS = 30
@@ -50,7 +50,7 @@ def display_qtables(qtables, params):
 
     # starting index for qtables
     qt_index = 0
-    max_index = qtables.shape[1] - 1
+    max_index = qtables.shape[0] - 1
 
     running = True
     while running:
@@ -72,7 +72,7 @@ def display_qtables(qtables, params):
             for y in range(GRID_H):
                 state = np.ravel_multi_index((x,y), params.map_size)
                 qvals = {a: qtable[state,a] for a in ACTIONS}
-                draw_state(screen, y, x, qvals, vmin, vmax, GRID_SIZE=GRID_SIZE)
+                draw_state(screen, y, x, qvals, vmin, vmax, GRID_SIZE=GRID_SIZE, decimals=decimals)
 
         pygame.display.flip()
         clock.tick(FPS)

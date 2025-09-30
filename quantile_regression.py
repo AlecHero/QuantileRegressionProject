@@ -22,10 +22,11 @@ class QuantileRegression:
     def update(self, state, action, reward, new_state):
         pred_quantiles = self.theta[state, action]
         greedy_action = self.theta[new_state].mean(1).argmax()
-        Ttheta = reward + self.gamma * self.theta[new_state, greedy_action]
-        u = Ttheta - pred_quantiles
+        target_quantiles = reward + self.gamma * self.theta[new_state, greedy_action]
         
-        self.theta[state, action] += self.learning_rate * (self.tau - (u < 0)) * du_huber(u)
+        u = target_quantiles[None, :] - pred_quantiles[:, None]
+        
+        self.theta[state, action] += self.learning_rate * (self.tau[:, None] - (u < 0)).mean(1)
 
     def reset_table(self):
         """Reset the theta values."""
