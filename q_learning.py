@@ -54,3 +54,6 @@ class EpsilonGreedy:
             max_ids = np.where(qtable[state, :] == max(qtable[state, :]))[0]
             action = self.rng.choice(max_ids)
         return action
+    
+    def set_rng(self, seed_seq):
+        self.rng = np.random.default_rng(seed_seq)

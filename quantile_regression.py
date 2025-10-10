@@ -5,8 +5,7 @@ def huber(u, k=1.0):
     return np.where(np.abs(u) < k, 0.5 * np.power(u, 2), k * (np.abs(u) - 0.5 * k))
 
 def du_huber(u, k=1.0):
-    return np.where(np.abs(u) < k, 1.0, k*np.sign(u))
-
+    return np.where(np.abs(u) <= k, u, k * np.sign(u))
 
 class QuantileRegression:
     def __init__(self, params):
@@ -24,9 +23,10 @@ class QuantileRegression:
         greedy_action = self.theta[new_state].mean(1).argmax()
         target_quantiles = reward + self.gamma * self.theta[new_state, greedy_action]
         
-        u = target_quantiles[None, :] - pred_quantiles[:, None]
-        
-        self.theta[state, action] += self.learning_rate * (self.tau[:, None] - (u < 0)).mean(1)
+        u = pred_quantiles[:, None] - target_quantiles[None, :] # why
+        grad_loss = -np.abs(self.tau[:, None] - (u < 0)) * du_huber(u)
+        self.theta[state, action] += self.learning_rate * grad_loss.mean(1)
+
 
     def reset_table(self):
         """Reset the theta values."""

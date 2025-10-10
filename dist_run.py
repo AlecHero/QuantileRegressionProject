@@ -29,15 +29,20 @@ def run_env(env, learner, explorer, params):
     all_tables = np.zeros((params.n_runs, params.total_episodes//params.save_skip, params.state_size, params.action_size, params.n_quantiles))
 
     lr = params.learning_rate
-    seeds = np.random.SeedSequence(params.seed).spawn(params.n_runs)
+    seed_seqs = np.random.SeedSequence(params.seed).spawn(params.n_runs)
+    get_seed = lambda seed_seq: int(seed_seq.generate_state(1)[0])
+    
     for run in range(params.n_runs):
         learner.reset_table()
+        explorer.set_rng(seed_seqs[run])
+        env.reset(seed=get_seed(seed_seqs[run]))
+        
         for episode in tqdm(episodes, desc=f"Run {run}/{params.n_runs} - Episodes"):
             if params.use_lr_decay and episode % 2_000 == 0:
                 lr *= 0.5
                 learner.set_learning_rate(lr)
             
-            state = env.reset(seed=seeds[run])[0]
+            state, info = env.reset()
             done = False
 
             while not done:

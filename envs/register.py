@@ -12,3 +12,8 @@ def register_envs():
             id="WindyRooms-v1",
             entry_point="envs.windyrooms:WindyRoomsEnv",
         )
+    if not registry.get("Simple-v1"):
+        register(
+            id="Simple-v1",
+            entry_point="envs.simple:SimpleEnv",
+        )
