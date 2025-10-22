@@ -190,13 +190,13 @@ POSITION_MAPPING = {UP: [-1, 0], RIGHT: [0, 1], DOWN: [1, 0], LEFT: [0, -1]}
 
 
 class WindyRoomsEnv(CliffCustomEnv):
-    def __init__(self, render_mode: str | None = None, p_random: float = 0.1, shape=(14, 11), step_reward: int = -1, goal_reward: int = 10):
+    def __init__(self, render_mode: str | None = None, p_random: float = 0.1, shape=(14, 11), rewards={"step":0.0,"goal":1.0}):
         self.p_random = p_random
         self.shape = shape
         self.start_state_index = np.ravel_multi_index((self.shape[0]-1, 0), self.shape)
 
-        self.step_reward = step_reward
-        self.goal_reward = goal_reward
+        self.step_reward = rewards["step"]
+        self.goal_reward = rewards["goal"]
     
         self.nS = np.prod(self.shape)
         self.nA = 4

@@ -38,9 +38,9 @@ def draw_state(screen, x, y, qvals, vmin, vmax, GRID_SIZE, decimals=0):
         screen.blit(text, rect)
 
 
-def display_qtables(qtables, params, decimals=0, grid_size=80):
+def display_qtables(qtables, map_size, decimals=0, grid_size=80):
     GRID_SIZE = grid_size
-    GRID_W, GRID_H = params.map_size
+    GRID_W, GRID_H = map_size
     ACTIONS = [0, 1, 2, 3]
     FPS = 30
     
@@ -70,7 +70,7 @@ def display_qtables(qtables, params, decimals=0, grid_size=80):
         
         for x in range(GRID_W):
             for y in range(GRID_H):
-                state = np.ravel_multi_index((x,y), params.map_size)
+                state = np.ravel_multi_index((x,y), map_size)
                 qvals = {a: qtable[state,a] for a in ACTIONS}
                 draw_state(screen, y, x, qvals, vmin, vmax, GRID_SIZE=GRID_SIZE, decimals=decimals)
 

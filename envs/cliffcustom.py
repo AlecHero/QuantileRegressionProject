@@ -16,7 +16,8 @@ POSITION_MAPPING = {UP: [-1, 0], RIGHT: [0, 1], DOWN: [1, 0], LEFT: [0, -1]}
 
 
 class CliffCustomEnv(CliffWalkingEnv):
-    def __init__(self, render_mode: str | None = None, is_slippery: bool = False, shape=(4, 12)):
+    def __init__(self, render_mode: str | None = None, is_slippery: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}):
+        self.rewards = rewards
         self.shape = shape
         self.start_state_index = np.ravel_multi_index((self.shape[0]-1, 0), self.shape)
 
@@ -78,11 +79,11 @@ class CliffCustomEnv(CliffWalkingEnv):
             new_position = self._limit_coordinates(new_position).astype(int)
             new_state = np.ravel_multi_index(tuple(new_position), self.shape)
             if self._cliff[tuple(new_position)]:
-                outcomes.append((1 / len(deltas), self.start_state_index, -100, False))
+                outcomes.append((1 / len(deltas), self.start_state_index, self.rewards["fail"], True))
             elif tuple(new_position) == (self.shape[0] - 1, self.shape[1] - 1): # Goal state
-                outcomes.append((1 / len(deltas), new_state, 10, True))
+                outcomes.append((1 / len(deltas), new_state, self.rewards["goal"], True))
             else:
-                outcomes.append((1 / len(deltas), new_state, -1, False))
+                outcomes.append((1 / len(deltas), new_state, self.rewards["step"], False))
         return outcomes
 
     def _render_gui(self, mode):
