@@ -66,15 +66,14 @@ def plot_states_actions_distribution(states, actions, map_size):
 
 ### NEWER
 
-def plot_mean_convergence(qtables, ylim=(-0.1,2)):
+def plot_mean_convergence(qtables, params):
     mean_Qs = qtables[:,:37].mean(1)
     delta_Q = np.abs(mean_Qs[1:] - mean_Qs[:-1])
-    for a in range(4):
+    for a in range(params.action_size):
         plt.plot(delta_Q[:,a])
     plt.xlabel("Episode")
     plt.ylabel("Mean Q-value change")
     plt.title("Q-value convergence")
-    plt.ylim(ylim)
     plt.show()
 
 def plot_state_convergence(qtables, state=36):

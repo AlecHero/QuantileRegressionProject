@@ -34,10 +34,10 @@ class SimpleEnv(Env):
         self.render_mode = render_mode
 
     def _dist_normal(self):  return self.np_random.normal(0, 1)
-    def _dist_bimodal(self): return self.np_random.normal(-2 if (self.np_random.random() < 0.5) else 2, 1.0)
+    def _dist_bimodal(self): return self.np_random.normal(-4 if (self.np_random.random() < 0.5) else 0, 1.0)
     
     def _dist_skewed(self):  return self.np_random.exponential(1) - 1.0
-    def _dist_uniform(self): return self.np_random.uniform(-np.sqrt(3), np.sqrt(3))
+    def _dist_uniform(self): return self.np_random.uniform(0, 4)
 
     def step(self, a):
         p, s, dist_func, t = self.P[self.s][a]
