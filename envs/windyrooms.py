@@ -247,50 +247,55 @@ class WindyRoomsEnv(CliffCustomEnv):
         self.near_cliff_img = None
         self.tree_img = None
 
-    def _get_wind_state(self, state: int) -> int:
-        position = np.unravel_index(state, self.shape)
-        winded_position = position + np.array(POSITION_MAPPING[UP]) * self._wind[tuple(position)]
-        winded_position = self._limit_coordinates(winded_position).astype(int)
-        winded_state = np.ravel_multi_index(tuple(winded_position), self.shape)
-        return winded_state
+    def _apply_wind_from(self, state: int) -> int:
+        """Apply northward wind from given state."""
+        pos = np.array(np.unravel_index(state, self.shape))
+        wind_strength = int(self._wind[tuple(np.unravel_index(state, self.shape))])
+        for _ in range(wind_strength):
+            candidate = pos + np.array(POSITION_MAPPING[UP])
+            if self._cliff[tuple(candidate)]:
+                break
+            pos = candidate
+        pos = self._limit_coordinates(pos).astype(int)
+        return int(np.ravel_multi_index(tuple(pos), self.shape))
+
+    def _move_from_position(self, start_state: int, move: int) -> int:
+        """Apply a move unless blocked by a cliff (wall)."""
+        start_pos = np.array(np.unravel_index(start_state, self.shape))
+        candidate = start_pos + np.array(POSITION_MAPPING[move])
+        candidate = self._limit_coordinates(candidate).astype(int)
+        if self._cliff[tuple(candidate)]:
+            return start_state
+        return int(np.ravel_multi_index(tuple(candidate), self.shape))
 
     def _calculate_transition_prob(
         self, current: list[int] | np.ndarray, move: int
-    ) -> list[tuple[float, Any, int, bool]]:
-
-        if not self.p_random:
-            deltas = [POSITION_MAPPING[move]]
-        else:
-            deltas = [POSITION_MAPPING[act] for act in [move, (move + 1) % 4, (move + 2) % 4, (move + 3) % 4]]
-        
+    ) -> list[tuple[float, int, float, bool]]:
+        """
+        Implements Dabney et al. 2018 windy gridworld:
+        10% random-direction move,
+        90% intended move,
+        then wind applies northward after movement.
+        """
+        current_state = int(np.ravel_multi_index(tuple(np.array(current)), self.shape))
         outcomes = []
-        for delta in deltas:
-            position = np.array(current)
-            new_position = position + np.array(delta)
-            new_position = self._limit_coordinates(new_position).astype(int)
 
-            new_state = np.ravel_multi_index(tuple(new_position), self.shape)
-            old_state = np.ravel_multi_index(tuple(position), self.shape)
+        # All possible directions (intended + 3 random)
+        directions = [(move + i) % 4 for i in range(4)]
+        for act in directions:
+            p = (1.0 - self.p_random) if act == move else self.p_random / 3.0
 
-            p_trans = self.p_random / len(deltas)
+            # Step 1: try to move
+            moved_state = self._move_from_position(current_state, act)
 
-            if self._cliff[tuple(new_position)]:
-                outcomes.append((p_trans, old_state, self.step_reward, False))
-                if delta == deltas[0]:
-                    outcomes.append((1.0 - self.p_random, self._get_wind_state(old_state), self.step_reward, False))
-            
-            elif tuple(new_position) == (self.shape[0] - 1, self.shape[1] - 1): # Goal state
-                outcomes.append((p_trans, new_state, self.goal_reward, True))
-                if delta == deltas[0]:
-                    _wind_state = self._get_wind_state(new_state)
-                    if new_state == _wind_state:
-                        outcomes.append((1.0 - self.p_random, _wind_state, self.goal_reward, True))
-                    else:
-                        outcomes.append((1.0 - self.p_random, _wind_state, self.step_reward, False))
-            
+            # Step 2: apply wind
+            winded_state = self._apply_wind_from(moved_state)
+
+            # Step 3: reward and terminal
+            pos = np.unravel_index(winded_state, self.shape)
+            if pos == (self.shape[0] - 1, self.shape[1] - 1):
+                outcomes.append((p, winded_state, self.goal_reward, True))
             else:
-                outcomes.append((p_trans, new_state, self.step_reward, False))
-                if delta == deltas[0]:
-                    outcomes.append((1.0 - self.p_random, self._get_wind_state(new_state), self.step_reward, False))
-        
+                outcomes.append((p, winded_state, self.step_reward, False))
+
         return outcomes

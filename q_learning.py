@@ -33,9 +33,10 @@ class Qlearning:
 
 
 class EpsilonGreedy:
-    def __init__(self, epsilon, rng):
+    def __init__(self, epsilon, rng, policy=None):
         self.epsilon = epsilon
         self.rng = rng
+        self.policy = policy
 
     def choose_action(self, action_space, state, qtable):
         """Choose an action `a` in the current world state (s)."""
@@ -51,7 +52,10 @@ class EpsilonGreedy:
             # Break ties randomly
             # Find the indices where the Q-value equals the maximum value
             # Choose a random action from the indices where the Q-value is maximum
-            max_ids = np.where(qtable[state, :] == max(qtable[state, :]))[0]
+            if self.policy is None:
+                max_ids = np.where(qtable[state, :] == max(qtable[state, :]))[0]
+            else:
+                max_ids = np.where(self.policy[state, :] == max(self.policy[state, :]))[0]
             action = self.rng.choice(max_ids)
         return action
     

@@ -28,15 +28,11 @@ class Params(NamedTuple):
 
 def run_env(env, learner, explorer, params, show_progress=False):
     episodes = np.arange(params.total_episodes)
-    all_tables = np.zeros((params.n_runs, params.total_episodes//params.save_skip, params.state_size, params.action_size, params.n_quantiles))
+    tables_run = np.zeros((params.n_runs, params.total_episodes//params.save_skip, params.state_size, params.action_size, params.n_quantiles))
 
     lr = params.learning_rate
     seed_seqs = np.random.SeedSequence(params.seed).spawn(params.n_runs)
     get_seed = lambda seed_seq: int(seed_seq.generate_state(1)[0])
-    
-    # if learner.get_table().any(): # If the learner's table is not empty, continue the training from there
-    #     for run in range(params.n_runs):
-    #         all_tables[run][0] = learner.get_table()   
     
     for run in range(params.n_runs):
         learner.reset_table()
@@ -48,6 +44,8 @@ def run_env(env, learner, explorer, params, show_progress=False):
                 qtable = learner.get_qtable()
                 clear_output(wait=True)
                 plot_optimal_action(qtable, params)
+                from analysis import plot_mean_convergence
+                plot_mean_convergence(tables_run[run,:(episode//params.save_skip)].mean(-1), params)
                 
             if params.use_lr_decay and episode % 2_000 == 0 and episode != 0:
                 lr *= 0.5
@@ -69,8 +67,60 @@ def run_env(env, learner, explorer, params, show_progress=False):
                 state = new_state
             
             if episode % params.save_skip == 0:
-                all_tables[run][episode//params.save_skip] = learner.get_table()
-    return all_tables
+                tables_run[run][episode//params.save_skip] = learner.get_table().copy()
+    return tables_run
+
+
+# def run_policy(env, learner, policy, params):
+#     tables_run = np.zeros(( params.n_runs,
+#                             params.total_episodes//params.save_skip,
+#                             params.state_size,
+#                             params.action_size,
+#                             params.n_quantiles))
+
+#     for run in range(params.n_runs):
+#         lr = params.learning_rate
+#         learner.reset_table()
+#         for episode in tqdm(range(params.total_episodes), desc=f"Run {run}/{params.n_runs} - Episodes"):
+#             if params.use_lr_decay and episode % 2_000 == 0 and episode != 0:
+#                 lr *= 0.5
+#                 learner.set_learning_rate(lr)
+            
+#             state, _ = env.reset()
+#             done = False
+#             while not done:
+#                 action = policy[state]
+#                 new_state, reward, terminated, truncated, _ = env.step(action)
+#                 done = terminated or truncated
+#                 learner.update(state, action, reward, new_state)
+#                 state = new_state
+            
+#             if episode % params.save_skip == 0:
+#                 tables_run[run][episode//params.save_skip] = learner.get_table().copy()
+
+#     return tables_run
+
+
+def run_sweep(env, learner, params):
+    tables_run = np.zeros((params.n_runs, params.total_episodes//params.save_skip, params.state_size, params.action_size, params.n_quantiles))
+    valid_states = [np.ravel_multi_index(coord, params.map_size) for coord in np.argwhere(~env.unwrapped._cliff)][:-1]
+
+    lr = params.learning_rate
+    for run in range(params.n_runs):
+        for episode in tqdm(range(params.total_episodes)):
+            if params.use_lr_decay and episode % 2_000 == 0 and episode != 0:
+                lr *= 0.5
+                learner.set_learning_rate(lr)
+            for state in valid_states:
+                for action in range(params.action_size):
+                    env.reset()
+                    env.unwrapped.s = state
+                    next_state, reward, _, _, _ = env.step(action)
+                    learner.update(state, action, reward, next_state)
+            if episode % params.save_skip == 0:
+                tables_run[run][episode//params.save_skip] = learner.get_table().copy()
+    return tables_run
+
 
 def save_experiment(tables, params):
     timestamp = datetime.datetime.now().strftime("%d%m_%H%M")

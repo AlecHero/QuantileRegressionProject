@@ -25,6 +25,24 @@ def plot_kde(quantiles, params, bandwith=0.05, is_filled=True):
     plt.show()
 
 
+def plot_returns(returns, bandwith=0.01, is_filled=True, limits=None):
+    from sklearn.neighbors import KernelDensity
+    samples = returns[:, None]
+    kde = KernelDensity(kernel="gaussian", bandwidth=bandwith).fit(samples)
+    
+    if limits is None: limits = (returns.min(), returns.max())
+    
+    x_grid = np.linspace(*limits, 10_000)[:, None]
+    log_pdf = kde.score_samples(x_grid)
+    pdf = np.exp(log_pdf)
+    
+    if is_filled:
+        plt.fill_between(x_grid[:,0], pdf, alpha=0.2)
+    plt.plot(x_grid[:,0], pdf)
+    plt.title("Kernel Density Estimation")
+    plt.show()
+
+
 def plot_grad(quantiles, params, is_filled=True, highlight_optimal=False):
     tau = ((2 * np.arange(params.n_quantiles) + 1) / (2.0 * params.n_quantiles))
     a_max = quantiles.mean(1).argmax()
