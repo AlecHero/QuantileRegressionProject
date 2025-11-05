@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 from typing import NamedTuple
 from IPython.display import clear_output
-from analysis import plot_optimal_action
+from analysis import plot_optimal_action, plot_mean_convergence
 
 from pathlib import Path
 import datetime
@@ -44,9 +44,8 @@ def run_env(env, learner, explorer, params, show_progress=False):
                 qtable = learner.get_qtable()
                 clear_output(wait=True)
                 plot_optimal_action(qtable, params)
-                from analysis import plot_mean_convergence
                 plot_mean_convergence(tables_run[run,:(episode//params.save_skip)].mean(-1), params)
-                
+            
             if params.use_lr_decay and episode % 2_000 == 0 and episode != 0:
                 lr *= 0.5
                 learner.set_learning_rate(lr)
@@ -56,11 +55,8 @@ def run_env(env, learner, explorer, params, show_progress=False):
             
             state, _ = env.reset()
             done = False
-
             while not done:
-                qtable = learner.get_qtable() # Get the mean over the quantiles to get a Q-table for action selection
-                action = explorer.choose_action(action_space=env.action_space, state=state, qtable=qtable)
-
+                action = explorer.choose_action(action_space=env.action_space, state=state, qtable=learner.get_qtable())
                 new_state, reward, terminated, truncated, _ = env.step(action)
                 done = terminated or truncated
                 learner.update(state, action, reward, new_state)
@@ -69,36 +65,6 @@ def run_env(env, learner, explorer, params, show_progress=False):
             if episode % params.save_skip == 0:
                 tables_run[run][episode//params.save_skip] = learner.get_table().copy()
     return tables_run
-
-
-# def run_policy(env, learner, policy, params):
-#     tables_run = np.zeros(( params.n_runs,
-#                             params.total_episodes//params.save_skip,
-#                             params.state_size,
-#                             params.action_size,
-#                             params.n_quantiles))
-
-#     for run in range(params.n_runs):
-#         lr = params.learning_rate
-#         learner.reset_table()
-#         for episode in tqdm(range(params.total_episodes), desc=f"Run {run}/{params.n_runs} - Episodes"):
-#             if params.use_lr_decay and episode % 2_000 == 0 and episode != 0:
-#                 lr *= 0.5
-#                 learner.set_learning_rate(lr)
-            
-#             state, _ = env.reset()
-#             done = False
-#             while not done:
-#                 action = policy[state]
-#                 new_state, reward, terminated, truncated, _ = env.step(action)
-#                 done = terminated or truncated
-#                 learner.update(state, action, reward, new_state)
-#                 state = new_state
-            
-#             if episode % params.save_skip == 0:
-#                 tables_run[run][episode//params.save_skip] = learner.get_table().copy()
-
-#     return tables_run
 
 
 def run_sweep(env, learner, params):

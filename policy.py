@@ -44,7 +44,7 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     return policy, V
 
 
-def MonteCarlo(env, policy, s_init=143, gamma=0.99, total_episodes=1000):
+def MonteCarlo(env, policy, s_init=143, gamma=0.99, total_episodes=1000, epsilon=0.1):
     returns = []
     for _ in range(total_episodes):
         env.reset()
@@ -55,7 +55,11 @@ def MonteCarlo(env, policy, s_init=143, gamma=0.99, total_episodes=1000):
         done = False
         
         while not done:
-            next_s, reward, terminated, truncated, _ = env.step(policy[s])
+            if np.random.rand() < epsilon:
+                a = np.random.randint(4)
+            else:
+                a = policy[s].argmax()
+            next_s, reward, terminated, truncated, _ = env.step(a)
             done = terminated or truncated
             G += discount * reward
             discount *= gamma
