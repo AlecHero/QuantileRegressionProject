@@ -1,0 +1,20 @@
+{
+    "model_name": "WindyRooms-v1",
+    "total_episodes": 10000,
+    "learning_rate": 1.0,
+    "gamma": 0.99,
+    "epsilon": 0.1,
+    "seed": 42,
+    "n_runs": 1,
+    "action_size": 4,
+    "state_size": 154,
+    "map_size": [
+        14,
+        11
+    ],
+    "n_quantiles": 50,
+    "use_lr_decay": true,
+    "decay_rate": null,
+    "save_skip": 100,
+    "huber_k": 1.0
+}
