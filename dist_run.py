@@ -88,14 +88,40 @@ def run_sweep(env, learner, params):
     return tables_run
 
 
-def save_experiment(tables, params):
+def save_experiment(tables_run, params, plot_info=None):
     timestamp = datetime.datetime.now().strftime("%d%m_%H%M")
     exp_dir = Path(f"experiments/{params.model_name}_{timestamp}")
     exp_dir.mkdir(parents=True, exist_ok=True)
 
-    np.savez(exp_dir / "tables.npz", tables=tables)
+    np.savez(exp_dir / "tables.npz", tables=tables_run)
     with open(exp_dir / "params.json", "w") as f:
         json.dump(params._asdict(), f, indent=4)
+    
+    if plot_info is not None:
+        save_plots(tables_run, params, plot_info, exp_dir)
+
+
+def save_plots(tables_run, params, plot_info, exp_dir):
+    from analysis import plot_grad, plot_returns, plot_mean_convergence, plot_kde
+    plots_dir = exp_dir / "plots"
+    plots_dir.mkdir(exist_ok=True)
+
+    tables = tables_run.mean(0)
+    qtables = tables.mean(-1) if params.n_quantiles > 1 else tables[-1]
+    
+    try: plot_mean_convergence(qtables[:,plot_info["state"]:plot_info["state"]+1], params, save_path=plots_dir / f"convergence_{plot_info['state']}.png")
+    except: pass
+    plot_mean_convergence(qtables, params, save_path=plots_dir / f"convergence_mean.png")
+
+    try: plot_grad(tables[-1, plot_info["state"]], params, is_filled=plot_info["is_filled"], save_path=plots_dir / f"grad_{plot_info['state']}.png")
+    # except: plot_kde(tables[-1, plot_info["state"]], params, is_filled=plot_info["is_filled"], bandwidth=plot_info["bandwidth"], save_path=plots_dir / f"kde_{plot_info['state']}.png")
+    except: pass
+
+    all_actions = tables[-1, plot_info["state"]].reshape(-1).copy()
+    all_actions.sort()
+    plot_returns(all_actions, bandwidth=plot_info["bandwidth"], is_filled=plot_info["is_filled"], save_path=plots_dir / f"all_actions_{plot_info['state']}.png")
+    
+    plot_optimal_action(qtables[-1], params, save_path=plots_dir / f"optimal_action.png")
 
 
 def load_experiment(experiment_name=None):
@@ -114,4 +140,7 @@ def load_experiment(experiment_name=None):
     if tables_file.exists():
         tables = np.load(tables_file)["tables"]
 
-    return params, tables
+    if len(tables.shape) == 5:
+        tables = tables.mean(0)
+    qtables = tables.mean(-1)
+    return tables, qtables, params

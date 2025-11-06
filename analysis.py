@@ -5,11 +5,11 @@ sns.set_theme()
 
 arrow_directions = {0: "↑", 1: "→", 2: "↓", 3: "←"}
 
-def plot_kde(quantiles, params, bandwith=0.05, is_filled=True):
+def plot_kde(quantiles, params, bandwidth=0.05, is_filled=True, save_path=None):
     from sklearn.neighbors import KernelDensity
     for a in range(params.action_size):
         samples = quantiles[a][:, None]
-        kde = KernelDensity(kernel="gaussian", bandwidth=bandwith).fit(samples)
+        kde = KernelDensity(kernel="gaussian", bandwidth=bandwidth).fit(samples)
         
         x_grid = np.linspace(quantiles[a].min(), quantiles[a].max(), 10_000)[:, None]
         log_pdf = kde.score_samples(x_grid)
@@ -22,13 +22,18 @@ def plot_kde(quantiles, params, bandwith=0.05, is_filled=True):
     
     plt.title("Kernel Density Estimation")
     plt.legend()
-    plt.show()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        plt.close()
+    else:
+        plt.show()
 
 
-def plot_returns(returns, bandwith=0.01, is_filled=True, limits=None):
+def plot_returns(returns, bandwidth=0.01, is_filled=True, limits=None, save_path=None):
     from sklearn.neighbors import KernelDensity
     samples = returns[:, None]
-    kde = KernelDensity(kernel="gaussian", bandwidth=bandwith).fit(samples)
+    kde = KernelDensity(kernel="gaussian", bandwidth=bandwidth).fit(samples)
     
     if limits is None: limits = (returns.min(), returns.max())
     
@@ -40,23 +45,37 @@ def plot_returns(returns, bandwith=0.01, is_filled=True, limits=None):
         plt.fill_between(x_grid[:,0], pdf, alpha=0.2)
     plt.plot(x_grid[:,0], pdf)
     plt.title("Kernel Density Estimation")
-    plt.show()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        plt.close()
+    else:
+        plt.show()
 
 
-def plot_grad(quantiles, params, is_filled=True, highlight_optimal=False):
-    tau = ((2 * np.arange(params.n_quantiles) + 1) / (2.0 * params.n_quantiles))
-    a_max = quantiles.mean(1).argmax()
-    for a in range(params.action_size):
-        r = quantiles[a]
-        plt.plot(r, np.gradient(tau, r), label=f"action: {arrow_directions[a]}", alpha=0.55 if highlight_optimal and a != a_max else 1.0)
-        if is_filled:
-            plt.fill_between(r, np.gradient(tau, r), alpha=0.2)
-    plt.title("Density Estimation via Quantile Gradients")
-    plt.legend()
-    plt.show()
+def plot_grad(quantiles, params, is_filled=True, highlight_optimal=False, save_path=None):
+    from warnings import catch_warnings, filterwarnings
+    with catch_warnings():
+        filterwarnings("ignore", category=RuntimeWarning)
+        
+        tau = ((2 * np.arange(params.n_quantiles) + 1) / (2.0 * params.n_quantiles))
+        a_max = quantiles.mean(1).argmax()
+        for a in range(quantiles.shape[0]):
+            r = quantiles[a]
+            grad = np.gradient(tau, r)
+            assert not (np.isnan(grad).any() or np.isinf(grad).any())
+            plt.plot(r, grad, label=f"action: {arrow_directions[a]}", alpha=0.55 if highlight_optimal and a != a_max else 1.0)
+            if is_filled:
+                plt.fill_between(r, np.gradient(tau, r), alpha=0.2)
+        plt.title("Density Estimation via Quantile Gradients")
+        plt.legend()
+        
+        if save_path:
+            plt.savefig(save_path, bbox_inches="tight")
+            plt.close()
 
 
-def plot_optimal_action(qtable, params):
+def plot_optimal_action(qtable, params, save_path=None):
     map_size = params.map_size
     qtable_val_max = qtable.max(axis=1).reshape(map_size)
     qtable_best_action = qtable.argmax(1).reshape(map_size)
@@ -87,10 +106,14 @@ def plot_optimal_action(qtable, params):
         spine.set_visible(True)
         spine.set_color("black")
 
-    plt.show()
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        plt.close()
+    else:
+        plt.show()
 
 
-def plot_mean_convergence(qtables, params):
+def plot_mean_convergence(qtables, params, save_path=None):
     eps_n = qtables.shape[0]
     skip = params.save_skip
 
@@ -106,4 +129,9 @@ def plot_mean_convergence(qtables, params):
 
     xticks = np.linspace(0, eps_n * skip, 6, dtype=int)
     plt.xticks(xticks, [f"{x:,}" for x in xticks])  # format with commas
-    plt.show()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        plt.close()
+    else:
+        plt.show()
