@@ -16,7 +16,7 @@ POSITION_MAPPING = {UP: [-1, 0], RIGHT: [0, 1], DOWN: [1, 0], LEFT: [0, -1]}
 
 
 class CliffCustomEnv(CliffWalkingEnv):
-    def __init__(self, render_mode: str | None = None, is_slippery: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}):
+    def __init__(self, render_mode: str | None = None, p_random = 0.1, is_slippery: bool = False, is_windy: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}):
         self.rewards = rewards
         self.shape = shape
         self.start_state_index = np.ravel_multi_index((self.shape[0]-1, 0), self.shape)
@@ -25,6 +25,8 @@ class CliffCustomEnv(CliffWalkingEnv):
         self.nA = 4
 
         self.is_slippery = is_slippery
+        self.is_windy = is_windy
+        self.p_random = p_random
 
         # Cliff Location
         self._cliff = np.zeros(self.shape, dtype=bool)
@@ -67,23 +69,26 @@ class CliffCustomEnv(CliffWalkingEnv):
         self.tree_img = None
 
     def _calculate_transition_prob(self, current: list[int] | np.ndarray, move: int) -> list[tuple[float, Any, int, bool]]:
-        if not self.is_slippery:
-            deltas = [POSITION_MAPPING[move]]
+        if self.is_slippery:
+            deltas = [(POSITION_MAPPING[act],1.0/self.nA) for act in [(move - 1) % 4, move, (move + 1) % 4]]
+        elif self.is_windy:
+            deltas = [(POSITION_MAPPING[act], self.p_random / self.nA) for act in range(self.nA)]
+            deltas.append((POSITION_MAPPING[move], 1.0-self.p_random))
         else:
-            deltas = [
-                POSITION_MAPPING[act] for act in [(move - 1) % 4, move, (move + 1) % 4]
-            ]
+            deltas = [(POSITION_MAPPING[move],1.0)]
+        
         outcomes = []
-        for delta in deltas:
+        for delta,p in deltas:
             new_position = np.array(current) + np.array(delta)
             new_position = self._limit_coordinates(new_position).astype(int)
             new_state = np.ravel_multi_index(tuple(new_position), self.shape)
+            
             if self._cliff[tuple(new_position)]:
-                outcomes.append((1 / len(deltas), self.start_state_index, self.rewards["fail"], False))
+                outcomes.append((p, self.start_state_index, self.rewards["fail"], False))
             elif tuple(new_position) == (self.shape[0] - 1, self.shape[1] - 1): # Goal state
-                outcomes.append((1 / len(deltas), new_state, self.rewards["goal"], True))
+                outcomes.append((p, new_state, self.rewards["goal"], True))
             else:
-                outcomes.append((1 / len(deltas), new_state, self.rewards["step"], False))
+                outcomes.append((p, new_state, self.rewards["step"], False))
         return outcomes
 
     def _render_gui(self, mode):

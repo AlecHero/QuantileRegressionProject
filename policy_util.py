@@ -18,8 +18,15 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
         while True:
             delta = 0
             for s in range(nS):
-                if s in env.unwrapped._cliff.flatten().nonzero()[0] or s == nS-1:
-                    continue
+                try:
+                    if s in env.unwrapped._cliff.flatten().nonzero()[0] or s == nS-1:
+                        continue
+                except: pass
+                try:
+                    if s in np.flatnonzero(env.unwrapped.desc == b"H") or np.flatnonzero(env.unwrapped.desc == b"G"):
+                        continue
+                except: pass
+                    
                 v = V[s]
                 V[s] = sum(policy[s,a] * sum(prob * (reward + gamma * V[next_s])
                         for prob, next_s, reward, done in P[s][a]) for a in range(nA))
@@ -30,8 +37,14 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
         # --- Policy Improvement ---
         is_policy_stable = True
         for s in range(nS):
-            if s in env.unwrapped._cliff.flatten().nonzero()[0] or s == nS-1:
-                continue
+            try:
+                if s in env.unwrapped._cliff.flatten().nonzero()[0] or s == nS-1:
+                    continue
+            except: pass
+            try:
+                if s in np.flatnonzero(env.unwrapped.desc == b"H") or np.flatnonzero(env.unwrapped.desc == b"G"):
+                    continue
+            except: pass
             old_action = np.argmax(policy[s])
             # Compute action-values
             Q_s = np.array([sum(prob * (reward + gamma * V[next_s]) for prob, next_s, reward, done in P[s][a])
@@ -44,27 +57,29 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     return policy, V
 
 
-def MonteCarlo(env, policy, s_init=143, gamma=0.99, total_episodes=1000, epsilon=0.1):
+def MonteCarlo(env, policy, params, s_init, rng:np.random.Generator, epsilon=0.0, total_episodes=1_000):
+    from tqdm import tqdm
     returns = []
-    for _ in range(total_episodes):
+    nA = params.action_size
+    for _ in tqdm(range(total_episodes)):
         env.reset()
         env.unwrapped.s = s_init
         s = s_init
         G = 0.0
-        discount = gamma
+        discount = params.gamma
         done = False
         
         while not done:
-            if np.random.rand() < epsilon:
-                a = np.random.randint(4)
+            if rng.random() < epsilon:
+                a = rng.integers(nA)
             else:
-                a = policy[s].argmax()
+                a = rng.choice(np.flatnonzero(policy[s] == policy[s].max()))
+            
             next_s, reward, terminated, truncated, _ = env.step(a)
             done = terminated or truncated
             G += discount * reward
-            discount *= gamma
+            discount *= params.gamma
             s = next_s
         
         returns.append(G)
-    returns.sort()
     return np.array(returns)

@@ -1,8 +1,0 @@
-todo quantile:
-- lav cliffwalkingLowReward men kør på færdiglært, og test rewards men husK(?) discount value så reward distirbution ikke bare kun er 1.
-- WindyRooms kører meget langsom selv med den rigtige funktion for du_huber eller med den simplere k=0.0
-- kan der stadig være et problem med seeding mellem episoder? Mellem runs? Tjek lidt bedre
-- Find ud af og GEM nogle færdigt gennemtænkte plots til Simple, og derefter til CliffWalking (med LowReward eller ej)
-  - Sammenlign med Q-learning for cliffWalking
-- ryd op i plots funktioner..mebby
-- find ud af at plotte KDE bedre, eller evt plotte med bar plots, ELLER evt evt evt plotte KDE med aktuelle sample points inkluderet.

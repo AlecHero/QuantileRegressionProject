@@ -190,14 +190,17 @@ POSITION_MAPPING = {UP: [-1, 0], RIGHT: [0, 1], DOWN: [1, 0], LEFT: [0, -1]}
 
 
 class WindyRoomsEnv(CliffCustomEnv):
-    def __init__(self, render_mode: str | None = None, p_random: float = 0.1, shape=(14, 11), rewards={"step":0.0,"goal":1.0}):
+    def __init__(self, render_mode: str | None = None, p_random: float = 0.1, shape=(14, 11), rewards={"step":0.0,"goal":1.0}, is_two_room=True):
         self.p_random = p_random
-        self.shape = shape
+        
+        if is_two_room:
+            self.shape = shape
+            self.goal_pos = self.shape[0]-1, self.shape[1]-1
+        else:
+            self.goal_pos = (3,5)
+            self.shape = (14,6)
+        
         self.start_state_index = np.ravel_multi_index((self.shape[0]-1, 0), self.shape)
-
-        self.step_reward = rewards["step"]
-        self.goal_reward = rewards["goal"]
-    
         self.nS = np.prod(self.shape)
         self.nA = 4
 
@@ -211,15 +214,21 @@ class WindyRoomsEnv(CliffCustomEnv):
         self._wind[:, 1] = 1
         self._wind[:, (2, 3, 4)] = 2
 
+        self._is_terminal = np.zeros(self.shape, dtype=bool)
+        self._is_terminal[tuple(self.goal_pos)] = True
+        
+        self._reward = np.full(self.shape, rewards["step"])
+        self._reward[tuple(self.goal_pos)] = rewards["goal"]
+
         # Calculate transition probabilities and rewards
         self.P = {}
         for s in range(self.nS):
             position = np.unravel_index(s, self.shape)
             self.P[s] = {a: [] for a in range(self.nA)}
-            self.P[s][UP] = self._calculate_transition_prob(position, UP)
+            self.P[s][UP]    = self._calculate_transition_prob(position, UP)
             self.P[s][RIGHT] = self._calculate_transition_prob(position, RIGHT)
-            self.P[s][DOWN] = self._calculate_transition_prob(position, DOWN)
-            self.P[s][LEFT] = self._calculate_transition_prob(position, LEFT)
+            self.P[s][DOWN]  = self._calculate_transition_prob(position, DOWN)
+            self.P[s][LEFT]  = self._calculate_transition_prob(position, LEFT)
 
         # Calculate initial state distribution
         # We always start in state (3, 0)
@@ -247,55 +256,23 @@ class WindyRoomsEnv(CliffCustomEnv):
         self.near_cliff_img = None
         self.tree_img = None
 
-    def _apply_wind_from(self, state: int) -> int:
-        """Apply northward wind from given state."""
-        pos = np.array(np.unravel_index(state, self.shape))
-        wind_strength = int(self._wind[tuple(np.unravel_index(state, self.shape))])
-        for _ in range(wind_strength):
-            candidate = pos + np.array(POSITION_MAPPING[UP])
-            if self._cliff[tuple(candidate)]:
-                break
-            pos = candidate
-        pos = self._limit_coordinates(pos).astype(int)
-        return int(np.ravel_multi_index(tuple(pos), self.shape))
+    def _to_state(self, pos): return np.ravel_multi_index(pos, self.shape)
+    
+    def _limit_cliff(self, pos, new_pos): return pos if self._cliff[tuple(new_pos)] else new_pos
 
-    def _move_from_position(self, start_state: int, move: int) -> int:
-        """Apply a move unless blocked by a cliff (wall)."""
-        start_pos = np.array(np.unravel_index(start_state, self.shape))
-        candidate = start_pos + np.array(POSITION_MAPPING[move])
-        candidate = self._limit_coordinates(candidate).astype(int)
-        if self._cliff[tuple(candidate)]:
-            return start_state
-        return int(np.ravel_multi_index(tuple(candidate), self.shape))
-
-    def _calculate_transition_prob(
-        self, current: list[int] | np.ndarray, move: int
-    ) -> list[tuple[float, int, float, bool]]:
-        """
-        Implements Dabney et al. 2018 windy gridworld:
-        10% random-direction move,
-        90% intended move,
-        then wind applies northward after movement.
-        """
-        current_state = int(np.ravel_multi_index(tuple(np.array(current)), self.shape))
+    def _calculate_transition_prob(self, pos: list[int] | np.ndarray, action: int) -> list[tuple[float, int, float, bool]]:
+        pos = np.array(pos)
         outcomes = []
+        
+        for a in range(self.nA):
+            dir = np.array(POSITION_MAPPING[a])
+            new_pos = self._limit_coordinates(pos + dir)
+            new_pos = self._limit_cliff(pos, new_pos)
+            outcomes.append((self.p_random / 4.0, self._to_state(new_pos), self._reward[tuple(new_pos)], self._is_terminal[tuple(new_pos)]))
 
-        # All possible directions (intended + 3 random)
-        directions = [(move + i) % 4 for i in range(4)]
-        for act in directions:
-            p = (1.0 - self.p_random) if act == move else self.p_random / 3.0
-
-            # Step 1: try to move
-            moved_state = self._move_from_position(current_state, act)
-
-            # Step 2: apply wind
-            winded_state = self._apply_wind_from(moved_state)
-
-            # Step 3: reward and terminal
-            pos = np.unravel_index(winded_state, self.shape)
-            if pos == (self.shape[0] - 1, self.shape[1] - 1):
-                outcomes.append((p, winded_state, self.goal_reward, True))
-            else:
-                outcomes.append((p, winded_state, self.step_reward, False))
-
+        dir = np.array(POSITION_MAPPING[action])
+        wind_pos = self._limit_coordinates(pos + np.array(POSITION_MAPPING[UP]) * self._wind[tuple(pos)])
+        new_pos = self._limit_coordinates(wind_pos + dir)
+        new_pos = self._limit_cliff(wind_pos, new_pos)
+        outcomes.append((1.0 - self.p_random, self._to_state(new_pos), self._reward[tuple(new_pos)], self._is_terminal[tuple(new_pos)]))
         return outcomes

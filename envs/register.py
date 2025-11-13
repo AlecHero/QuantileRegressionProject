@@ -8,6 +8,12 @@ def register_envs():
             kwargs={"is_slippery": True},
             entry_point="envs.cliffcustom:CliffCustomEnv",
         )
+    if not registry.get("CliffSimple-v1"):
+        register(
+            id="CliffSimple-v1",
+            kwargs={"is_windy": True, "p_random":0.1, "rewards":{"step":0,"goal":1.0,"fail":-1.0}},
+            entry_point="envs.cliffcustom:CliffCustomEnv",
+        )
     if not registry.get("CliffCustomSlipperyLow-v1"):
         register(
             id="CliffCustomSlipperyLow-v1",
@@ -17,6 +23,36 @@ def register_envs():
     if not registry.get("WindyRooms-v1"):
         register(
             id="WindyRooms-v1",
+            entry_point="envs.windyrooms:WindyRoomsEnv",
+        )
+    if not registry.get("WindyRoomsHard-v1"):
+        register(
+            id="WindyRoomsHard-v1",
+            kwargs={"p_random":0.2},
+            entry_point="envs.windyrooms:WindyRoomsEnv",
+        )
+    if not registry.get("WindyRoomsEasy-v1"):
+        register(
+            id="WindyRoomsEasy-v1",
+            kwargs={"rewards":{"step":-1.0,"goal":100.0}},
+            entry_point="envs.windyrooms:WindyRoomsEnv",
+        )
+    if not registry.get("Windy-v1"):
+        register(
+            id="Windy-v1",
+            kwargs={"is_two_room": False},
+            entry_point="envs.windyrooms:WindyRoomsEnv",
+        )
+    if not registry.get("WindyHard-v1"):
+        register(
+            id="WindyHard-v1",
+            kwargs={"is_two_room": False, "p_random":0.3},
+            entry_point="envs.windyrooms:WindyRoomsEnv",
+        )
+    if not registry.get("WindyVeryHard-v1"):
+        register(
+            id="WindyVeryHard-v1",
+            kwargs={"p_random":0.5},
             entry_point="envs.windyrooms:WindyRoomsEnv",
         )
     if not registry.get("Simple-v1"):

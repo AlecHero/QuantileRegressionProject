@@ -6,7 +6,39 @@ def huber(u, k=1.0):
 def du_huber(u, k=1.0):
     return np.where(np.abs(u) <= k, u, k * np.sign(u))
 
-class QuantileRegression:
+
+class Qlearning:
+    def __init__(self, params):
+        self.state_size = params.state_size
+        self.action_size = params.action_size
+        self.learning_rate = params.learning_rate
+        self.gamma = params.gamma
+        self.reset_table()
+
+    def update(self, state, action, reward, new_state):
+        """Update Q(s,a):= Q(s,a) + lr [R(s,a) + gamma * max Q(s',a') - Q(s,a)]"""
+        delta = (
+            reward
+            + self.gamma * np.max(self.qtable[new_state, :])
+            - self.qtable[state, action]
+        )
+        self.qtable[state, action] += self.learning_rate * delta
+
+    def reset_table(self):
+        """Reset the Q-table."""
+        self.qtable = np.zeros((self.state_size, self.action_size, 1))
+
+    def get_qtable(self):
+        return self.qtable.copy()
+
+    def get_table(self):
+        return self.get_qtable()
+
+    def set_learning_rate(self, learning_rate):
+        self.learning_rate = learning_rate
+
+
+class QuantileRegression():
     def __init__(self, params):
         self.learning_rate = params.learning_rate
         self.gamma = params.gamma
@@ -30,16 +62,20 @@ class QuantileRegression:
         
         u = target_quantiles[None, :] - pred_quantiles[:, None]
         self.theta[state, action] -= self.learning_rate * self._rho(u).mean(1)
+        
+        # _q = self._rho(u)
+        # for i in range(self.n_quantiles):
+        #     self.theta[state, action][i] -= self.learning_rate * _q[i].mean()
 
     def reset_table(self):
         """Reset the theta values."""
-        self.theta = np.zeros((self.state_size, self.action_size, self.n_quantiles), dtype=float)
+        self.theta = np.full((self.state_size, self.action_size, self.n_quantiles), 1.0/self.n_quantiles, dtype=float)
 
     def get_qtable(self):
         return self.theta.mean(2)
     
     def get_table(self):
-        return self.theta
+        return self.theta.copy()
 
     def set_learning_rate(self, learning_rate):
         self.learning_rate = learning_rate

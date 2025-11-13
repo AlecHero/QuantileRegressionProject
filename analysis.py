@@ -63,7 +63,7 @@ def plot_grad(quantiles, params, is_filled=True, highlight_optimal=False, save_p
         for a in range(quantiles.shape[0]):
             r = quantiles[a]
             grad = np.gradient(tau, r)
-            assert not (np.isnan(grad).any() or np.isinf(grad).any())
+            if (np.isnan(grad).any() or np.isinf(grad).any()): continue
             plt.plot(r, grad, label=f"action: {arrow_directions[a]}", alpha=0.55 if highlight_optimal and a != a_max else 1.0)
             if is_filled:
                 plt.fill_between(r, np.gradient(tau, r), alpha=0.2)
@@ -135,3 +135,19 @@ def plot_mean_convergence(qtables, params, save_path=None):
         plt.close()
     else:
         plt.show()
+
+
+def plot_value_approx(y, params):
+    fig, ax = plt.subplots(figsize=(10,2))
+    ax.plot(y)
+    ax.set_yscale("log")
+
+    ticks = ax.get_xticks()[1:-1].astype(int)
+    ax.set_xticks(ticks, [f"{x:,}" for x in ticks*params.save_skip])
+    ax.set_xlim(ticks[0], ticks[-1])
+    
+    ax.set_xlabel("Episodes", fontweight="bold")
+    ax.set_ylabel(" $ W_1(Z_{MC}^\pi(x_s), Z(x_s)) $");
+    ax.set_title("Value Distribution Approximation Error", fontweight="bold");
+
+    return fig, ax

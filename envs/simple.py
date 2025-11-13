@@ -18,6 +18,9 @@ class SimpleEnv(Env):
         self.start_state_index = np.ravel_multi_index((1, 1), self.shape)
 
         self.nS = np.prod(self.shape)
+        self._cliff = np.ones(self.shape, dtype=bool)
+        self._cliff[1,1] = False
+
         self.nA = 3
 
         self.P = {

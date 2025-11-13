@@ -8,6 +8,8 @@ from pathlib import Path
 import datetime
 import json
 
+from learners import Qlearning, QuantileRegression
+
 class Params(NamedTuple):
     model_name: str
     total_episodes: int  # Total episodes
@@ -20,24 +22,21 @@ class Params(NamedTuple):
     state_size: int  # Number of possible states
     map_size: tuple[int, int] # Size of the map (for gridworlds)
     n_quantiles: int  # Number of quantiles
-    use_lr_decay: bool # Use learning rate decay 1/2 every 2_000 episodes
-    decay_rate: float # Decay rate for exponential learning rate decay
+    lr_decay: int # Use learning rate decay 1/2 every 2_000 episodes
+    # decay_rate: float # Decay rate for exponential learning rate decay
     save_skip: int # How many episodes to skip between each save
     huber_k: float # K parameter in huber loss
+    learner_name: str
 
 
-def run_env(env, learner, explorer, params, show_progress=False):
+def run_env(env, learner, explorer, params, show_progress=False, s_init=None):
     episodes = np.arange(params.total_episodes)
     tables_run = np.zeros((params.n_runs, params.total_episodes//params.save_skip, params.state_size, params.action_size, params.n_quantiles))
 
-    lr = params.learning_rate
-    seed_seqs = np.random.SeedSequence(params.seed).spawn(params.n_runs)
-    get_seed = lambda seed_seq: int(seed_seq.generate_state(1)[0])
-    
     for run in range(params.n_runs):
+        lr = params.learning_rate
         learner.reset_table()
-        explorer.set_rng(seed_seqs[run])
-        env.reset(seed=get_seed(seed_seqs[run]))
+        learner.set_learning_rate(lr)
         
         for episode in tqdm(episodes, desc=f"Run {run}/{params.n_runs} - Episodes"):
             if show_progress and episode != 0 and episode % 100 == 0:
@@ -46,14 +45,13 @@ def run_env(env, learner, explorer, params, show_progress=False):
                 plot_optimal_action(qtable, params)
                 plot_mean_convergence(tables_run[run,:(episode//params.save_skip)].mean(-1), params)
             
-            if params.use_lr_decay and episode % 2_000 == 0 and episode != 0:
+            if params.lr_decay is not None and episode % params.lr_decay == 0 and episode != 0:
                 lr *= 0.5
-                learner.set_learning_rate(lr)
-            elif params.decay_rate is not None:
-                lr = params.learning_rate * np.exp(-params.decay_rate * episode)
                 learner.set_learning_rate(lr)
             
             state, _ = env.reset()
+            if s_init is not None:
+                env.unwrapped.s = s_init
             done = False
             while not done:
                 action = explorer.choose_action(action_space=env.action_space, state=state, qtable=learner.get_qtable())
@@ -63,7 +61,7 @@ def run_env(env, learner, explorer, params, show_progress=False):
                 state = new_state
             
             if episode % params.save_skip == 0:
-                tables_run[run][episode//params.save_skip] = learner.get_table().copy()
+                tables_run[run, episode//params.save_skip] = learner.get_table()
     return tables_run
 
 
@@ -74,7 +72,7 @@ def run_sweep(env, learner, params):
     lr = params.learning_rate
     for run in range(params.n_runs):
         for episode in tqdm(range(params.total_episodes)):
-            if params.use_lr_decay and episode % 2_000 == 0 and episode != 0:
+            if params.lr_decay is not None and episode % params.lr_decay == 0 and episode != 0:
                 lr *= 0.5
                 learner.set_learning_rate(lr)
             for state in valid_states:
@@ -88,9 +86,12 @@ def run_sweep(env, learner, params):
     return tables_run
 
 
-def save_experiment(tables_run, params, plot_info=None):
+def save_experiment(tables_run, params, plot_info=None, name=None):
     timestamp = datetime.datetime.now().strftime("%d%m_%H%M")
-    exp_dir = Path(f"experiments/{params.model_name}_{timestamp}")
+    if name is None:
+        exp_dir = Path(f"new_experiments/{params.model_name}_{params.learner_name}_{timestamp}")
+    else:
+        exp_dir = Path(f"new_experiments/{params.model_name}_{params.learner_name}_{name}")
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     np.savez(exp_dir / "tables.npz", tables=tables_run)
