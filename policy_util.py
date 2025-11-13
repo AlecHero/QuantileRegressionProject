@@ -10,6 +10,7 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     V = np.zeros(nS)
 
     P = env.unwrapped.P
+    desc = env.unwrapped.desc
 
     # Policy Iteration
     is_policy_stable = False
@@ -23,8 +24,8 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
                         continue
                 except: pass
                 try:
-                    if s in np.flatnonzero(env.unwrapped.desc == b"H") or np.flatnonzero(env.unwrapped.desc == b"G"):
-                        continue
+                    _pos = np.unravel_index(s, desc.shape)
+                    if desc[_pos] in b"GH": continue
                 except: pass
                     
                 v = V[s]
@@ -42,8 +43,8 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
                     continue
             except: pass
             try:
-                if s in np.flatnonzero(env.unwrapped.desc == b"H") or np.flatnonzero(env.unwrapped.desc == b"G"):
-                    continue
+                _pos = np.unravel_index(s, desc.shape)
+                if desc[_pos] in b"GH": continue
             except: pass
             old_action = np.argmax(policy[s])
             # Compute action-values
