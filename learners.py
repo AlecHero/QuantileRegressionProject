@@ -51,17 +51,17 @@ class QuantileRegression():
 
     def _rho(self, u):
         if self.k==0.0:
-            return -(self.tau[:, None] - (u < 0))
+            return -(self.tau - (u < 0))
         else:
-            return -np.abs(self.tau[:, None] - (u < 0)) * du_huber(u, k=self.k)
+            return -np.abs(self.tau - (u < 0)) * du_huber(u, k=self.k)
 
     def update(self, state, action, reward, new_state):
         pred_quantiles = self.theta[state, action]
         greedy_action = self.theta[new_state].mean(1).argmax()
         target_quantiles = reward + self.gamma * self.theta[new_state, greedy_action]
         
-        u = target_quantiles[None, :] - pred_quantiles[:, None]
-        self.theta[state, action] -= self.learning_rate * self._rho(u).mean(1)
+        u = (target_quantiles[:, None] - pred_quantiles[None, :]).mean(0)
+        self.theta[state, action] -= self.learning_rate * self._rho(u)
         
         # _q = self._rho(u)
         # for i in range(self.n_quantiles):

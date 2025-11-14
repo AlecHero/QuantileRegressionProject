@@ -49,8 +49,8 @@ def plot_returns(returns, bandwidth=0.01, is_filled=True, limits=None, save_path
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
         plt.close()
-    else:
-        plt.show()
+    # else:
+    #     plt.show()
 
 
 def plot_grad(quantiles, params, is_filled=True, highlight_optimal=False, save_path=None):

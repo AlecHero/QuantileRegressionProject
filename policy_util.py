@@ -10,7 +10,9 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     V = np.zeros(nS)
 
     P = env.unwrapped.P
-    desc = env.unwrapped.desc
+    try:
+        desc = env.unwrapped.desc
+    except: pass
 
     # Policy Iteration
     is_policy_stable = False

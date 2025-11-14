@@ -84,7 +84,7 @@ class CliffCustomEnv(CliffWalkingEnv):
             new_state = np.ravel_multi_index(tuple(new_position), self.shape)
             
             if self._cliff[tuple(new_position)]:
-                outcomes.append((p, self.start_state_index, self.rewards["fail"], False))
+                outcomes.append((p, new_state, self.rewards["fail"], True))
             elif tuple(new_position) == (self.shape[0] - 1, self.shape[1] - 1): # Goal state
                 outcomes.append((p, new_state, self.rewards["goal"], True))
             else:

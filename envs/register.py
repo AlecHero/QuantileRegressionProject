@@ -11,7 +11,7 @@ def register_envs():
     if not registry.get("CliffSimple-v1"):
         register(
             id="CliffSimple-v1",
-            kwargs={"is_windy": True, "p_random":0.1, "rewards":{"step":0,"goal":1.0,"fail":-1.0}},
+            kwargs={"is_windy": True, "p_random":0.25, "rewards":{"step":0,"goal":1.0,"fail":-1.0}},
             entry_point="envs.cliffcustom:CliffCustomEnv",
         )
     if not registry.get("CliffCustomSlipperyLow-v1"):
