@@ -147,7 +147,7 @@ def plot_value_approx(y, params):
     ax.set_xlim(ticks[0], ticks[-1])
     
     ax.set_xlabel("Episodes", fontweight="bold")
-    ax.set_ylabel(" $ W_1(Z_{MC}^\pi(x_s), Z(x_s)) $");
-    ax.set_title("Value Distribution Approximation Error", fontweight="bold");
+    ax.set_ylabel(" $ W_1(Z_{MC}^\pi(x_s), Z(x_s)) $")
+    ax.set_title("Value Distribution Approximation Error", fontweight="bold")
 
     return fig, ax

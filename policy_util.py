@@ -60,7 +60,7 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     return policy, V
 
 
-def MonteCarlo(env, policy, params, s_init, rng:np.random.Generator, epsilon=0.0, total_episodes=1_000):
+def MonteCarlo(env, policy, params, s_init, rng:np.random.Generator, epsilon=0.0, total_episodes=1_000, policy_eps=None):
     from tqdm import tqdm
     returns = []
     nA = params.action_size
@@ -74,7 +74,10 @@ def MonteCarlo(env, policy, params, s_init, rng:np.random.Generator, epsilon=0.0
         
         while not done:
             if rng.random() < epsilon:
-                a = rng.integers(nA)
+                if policy_eps is not None:
+                    a = rng.choice(np.flatnonzero(policy_eps[s] >= policy_eps[s].max()))
+                else:
+                    a = rng.integers(nA)
             else:
                 a = rng.choice(np.flatnonzero(policy[s] == policy[s].max()))
             

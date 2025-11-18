@@ -1,0 +1,25 @@
+
+0 - Experiments:
+
+01 : Simplified Environment, with a single state and action. With a sufficient amount of N_taus compare Huber vs Simple QR.
+also compare mean V() vs Q-learning?
+
+Explain montecarlo, used for finding ground truth in stoatschits environment.
+Explain cliff simple environment (windy)
+
+02 : CliffSimple, compare with both huber and non huber again, this time to show how they are good at different things. also compare to Qlearning
+
+Explain windyrooms environment.
+Variants?
+
+03 : WindyRooms, compare with huber if relevant?
+
+
+PLOT THE VARIANCE TOO
+
+
+1 - Compare Off-policy / On-policy for the methods.
+
+11 : Cliff simple, off policy, shouldn't be too hard, but many values won't be visited enough, without very high epsilon
+
+12 : Windyrooms, VERY slow, takes unfeasibly long to run, and doesn't even give good results.
