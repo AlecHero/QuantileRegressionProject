@@ -23,7 +23,6 @@ class Params(NamedTuple):
     map_size: tuple[int, int] # Size of the map (for gridworlds)
     n_quantiles: int  # Number of quantiles
     lr_decay: int # Use learning rate decay 1/2 every 2_000 episodes
-    # decay_rate: float # Decay rate for exponential learning rate decay
     save_skip: int # How many episodes to skip between each save
     huber_k: float # K parameter in huber loss
     learner_name: str
@@ -33,35 +32,33 @@ def run_env(env, learner, explorer, params, show_progress=False, s_init=None):
     episodes = np.arange(params.total_episodes)
     tables_run = np.zeros((params.n_runs, params.total_episodes//params.save_skip, params.state_size, params.action_size, params.n_quantiles))
 
-    for run in range(params.n_runs):
-        lr = params.learning_rate
-        learner.reset_table()
-        learner.set_learning_rate(lr)
-        
-        for episode in tqdm(episodes, desc=f"Run {run}/{params.n_runs} - Episodes"):
-            if show_progress and episode != 0 and episode % 100 == 0:
-                qtable = learner.get_qtable()
-                clear_output(wait=True)
-                plot_optimal_action(qtable, params)
-                plot_mean_convergence(tables_run[run,:(episode//params.save_skip)].mean(-1), params)
+    with tqdm(total=params.n_runs * params.total_episodes) as pbar:
+        for run in range(params.n_runs):
+            lr = params.learning_rate
+            learner.reset_table()
+            learner.set_learning_rate(lr)
             
-            if params.lr_decay is not None and episode % params.lr_decay == 0 and episode != 0:
-                lr *= 0.5
-                learner.set_learning_rate(lr)
-            
-            state, _ = env.reset()
-            if s_init is not None:
-                env.unwrapped.s = s_init
-            done = False
-            while not done:
-                action = explorer.choose_action(action_space=env.action_space, state=state, qtable=learner.get_qtable())
-                new_state, reward, terminated, truncated, _ = env.step(action)
-                done = terminated or truncated
-                learner.update(state, action, reward, new_state)
-                state = new_state
-            
-            if episode % params.save_skip == 0:
-                tables_run[run, episode//params.save_skip] = learner.get_table()
+            for ep in episodes:
+                if params.lr_decay is not None and ep % params.lr_decay == 0 and ep != 0:
+                    lr *= 0.5
+                    learner.set_learning_rate(lr)
+                
+                state, _ = env.reset()
+                if s_init is not None:
+                    env.unwrapped.s = s_init
+                done = False
+                while not done:
+                    action = explorer.choose_action(action_space=env.action_space, state=state, qtable=learner.get_qtable())
+                    new_state, reward, terminated, truncated, _ = env.step(action)
+                    done = terminated or truncated
+                    learner.update(state, action, reward, new_state)
+                    state = new_state
+                
+                if ep % params.save_skip == 0:
+                    tables_run[run, ep//params.save_skip] = learner.get_table()
+                
+                pbar.set_postfix(run=run+1, ep=ep+1)
+                pbar.update(1)
     return tables_run
 
 
@@ -86,20 +83,14 @@ def run_sweep(env, learner, params):
     return tables_run
 
 
-def save_experiment(tables_run, params, plot_info=None, name=None):
+def save_experiment(tables_run, params, save_to="experiments", name=None):
     timestamp = datetime.datetime.now().strftime("%d%m_%H%M")
-    if name is None:
-        exp_dir = Path(f"new_experiments/{params.model_name}_{params.learner_name}_{timestamp}")
-    else:
-        exp_dir = Path(f"new_experiments/{params.model_name}_{params.learner_name}_{name}")
+    exp_dir = Path(f"{save_to}/{params.model_name}_{params.learner_name}_{timestamp if name is None else name}")
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     np.savez(exp_dir / "tables.npz", tables=tables_run)
     with open(exp_dir / "params.json", "w") as f:
         json.dump(params._asdict(), f, indent=4)
-    
-    if plot_info is not None:
-        save_plots(tables_run, params, plot_info, exp_dir)
 
 
 def save_plots(tables_run, params, plot_info, exp_dir):
@@ -145,93 +136,3 @@ def load_experiment(experiment_name=None):
         tables = tables.mean(0)
     qtables = tables.mean(-1)
     return tables, qtables, params
-
-
-def PolicyIteration(env, gamma=0.99, theta=1e-8):
-    ## CHAT-GPT:
-    nS = env.observation_space.n
-    nA = env.action_space.n
-    
-    policy = np.ones((nS, nA)) / nA
-    V = np.zeros(nS)
-
-    P = env.unwrapped.P
-    try:
-        desc = env.unwrapped.desc
-    except: pass
-
-    # Policy Iteration
-    is_policy_stable = False
-    while not is_policy_stable:
-        # --- Policy Evaluation ---
-        while True:
-            delta = 0
-            for s in range(nS):
-                try:
-                    if s in env.unwrapped._cliff.flatten().nonzero()[0] or s == nS-1:
-                        continue
-                except: pass
-                try:
-                    _pos = np.unravel_index(s, desc.shape)
-                    if desc[_pos] in b"GH": continue
-                except: pass
-                    
-                v = V[s]
-                V[s] = sum(policy[s,a] * sum(prob * (reward + gamma * V[next_s])
-                        for prob, next_s, reward, done in P[s][a]) for a in range(nA))
-                delta = max(delta, abs(v - V[s]))
-            if delta < theta:
-                break
-
-        # --- Policy Improvement ---
-        is_policy_stable = True
-        for s in range(nS):
-            try:
-                if s in env.unwrapped._cliff.flatten().nonzero()[0] or s == nS-1:
-                    continue
-            except: pass
-            try:
-                _pos = np.unravel_index(s, desc.shape)
-                if desc[_pos] in b"GH": continue
-            except: pass
-            old_action = np.argmax(policy[s])
-            # Compute action-values
-            Q_s = np.array([sum(prob * (reward + gamma * V[next_s]) for prob, next_s, reward, done in P[s][a])
-                            for a in range(nA)])
-            best_action = np.argmax(Q_s)
-            if old_action != best_action:
-                is_policy_stable = False
-            # Update policy to be greedy
-            policy[s] = np.eye(nA)[best_action]
-    return policy, V
-
-
-def MonteCarlo(env, policy, params, s_init, rng:np.random.Generator, epsilon=0.0, total_episodes=1_000, policy_eps=None):
-    from tqdm import tqdm
-    returns = []
-    nA = params.action_size
-    for _ in tqdm(range(total_episodes)):
-        env.reset()
-        env.unwrapped.s = s_init
-        s = s_init
-        G = 0.0
-        discount = params.gamma
-        done = False
-        
-        while not done:
-            if rng.random() < epsilon:
-                if policy_eps is not None:
-                    a = rng.choice(np.flatnonzero(policy_eps[s] >= policy_eps[s].max()))
-                else:
-                    a = rng.integers(nA)
-            else:
-                a = rng.choice(np.flatnonzero(policy[s] == policy[s].max()))
-            
-            next_s, reward, terminated, truncated, _ = env.step(a)
-            done = terminated or truncated
-            G += discount * reward
-            discount *= params.gamma
-            s = next_s
-        
-        returns.append(G)
-    return np.array(returns)
