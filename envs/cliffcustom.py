@@ -16,7 +16,7 @@ POSITION_MAPPING = {UP: [-1, 0], RIGHT: [0, 1], DOWN: [1, 0], LEFT: [0, -1]}
 
 
 class CliffCustomEnv(CliffWalkingEnv):
-    def __init__(self, render_mode: str | None = None, p_random = 0.1, is_slippery: bool = False, is_windy: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}):
+    def __init__(self, render_mode: str | None = None, p_random = 0.1, is_slippery: bool = False, is_windy: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}, reward_variance=0.0):
         self.rewards = rewards
         self.shape = shape
         self.start_state_index = np.ravel_multi_index((self.shape[0]-1, 0), self.shape)
@@ -24,6 +24,7 @@ class CliffCustomEnv(CliffWalkingEnv):
         self.nS = np.prod(self.shape)
         self.nA = 4
 
+        self.reward_variance = reward_variance
         self.is_slippery = is_slippery
         self.is_windy = is_windy
         self.p_random = p_random
@@ -90,6 +91,15 @@ class CliffCustomEnv(CliffWalkingEnv):
             else:
                 outcomes.append((p, new_state, self.rewards["step"], False))
         return outcomes
+
+    def step(self, action: int) -> tuple[int, float, bool, bool, dict]:
+        state, reward, terminated, truncated, info = super().step(action)
+        r_norm = 0.0
+        if self.reward_variance > 0.0 and abs(reward) > 0.0:
+            r_norm = np.random.normal(0.0, self.reward_variance)
+            reward += r_norm
+        return state, reward, terminated, truncated, info
+        
 
     def _render_gui(self, mode):
         try:

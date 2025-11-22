@@ -39,9 +39,10 @@ def run_env(env, learner, explorer, params, show_progress=False, s_init=None):
             learner.set_learning_rate(lr)
             
             for ep in episodes:
-                if params.lr_decay is not None and ep % params.lr_decay == 0 and ep != 0:
-                    lr *= 0.5
-                    learner.set_learning_rate(lr)
+                # if params.lr_decay is not None and ep % params.lr_decay == 0 and ep != 0:
+                #     lr *= 0.5
+                #     learner.set_learning_rate(lr)
+                learner.set_learning_rate(params.learning_rate * 1 / np.sqrt(ep+1))
                 
                 state, _ = env.reset()
                 if s_init is not None:

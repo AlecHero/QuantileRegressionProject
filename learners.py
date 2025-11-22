@@ -4,7 +4,7 @@ def huber(u, k=1.0):
     return np.where(np.abs(u) < k, 0.5 * np.power(u, 2), k * (np.abs(u) - 0.5 * k))
 
 def du_huber(u, k=1.0):
-    return np.where(np.abs(u) <= k, u, k * np.sign(u))
+    return np.where(np.abs(u) <= k, u / k, k * np.sign(u))
 
 
 class Qlearning:
@@ -52,21 +52,17 @@ class QuantileRegression():
 
     def _rho(self, u):
         if self.k==0.0:
-            return -(self.tau - (u < 0))
+            return -(self.tau - (u < 0)).mean(0)
         else:
-            return -np.abs(self.tau - (u < 0)) * du_huber(u, k=self.k)
+            return -np.abs((self.tau - (u < 0).astype(float)).mean(0)) * du_huber(u, self.k).mean(0)
 
     def update(self, state, action, reward, new_state):
         pred_quantiles = self.theta[state, action]
         greedy_action = self.theta[new_state].mean(1).argmax()
         target_quantiles = reward + self.gamma * self.theta[new_state, greedy_action]
         
-        u = (target_quantiles[:, None] - pred_quantiles[None, :]).mean(0)
+        u = target_quantiles[:, None] - pred_quantiles[None, :]
         self.theta[state, action] -= self.learning_rate * self._rho(u)
-        
-        # _q = self._rho(u)
-        # for i in range(self.n_quantiles):
-        #     self.theta[state, action][i] -= self.learning_rate * _q[i].mean()
 
     def reset_table(self):
         """Reset the theta values."""
