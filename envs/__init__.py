@@ -9,7 +9,7 @@ register(
 
 register(
     id="CliffMini",
-    kwargs={"is_windy": True, "p_random":0.25, "rewards":{"step":0,"goal":1.0,"fail":-1.0}, "shape":(2,3), "reward_variance":0.05},
+    kwargs={"is_windy": True, "p_random":0.25, "rewards":{"step":0,"goal":1.0,"fail":-1.0}},
     entry_point="envs.cliffcustom:CliffCustomEnv",
 )
 
