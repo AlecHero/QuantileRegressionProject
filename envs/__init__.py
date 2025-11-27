@@ -8,7 +8,17 @@ register(
 )
 
 register(
+<<<<<<< HEAD
     id="CliffSimple",
+=======
+    id="CliffMini",
+    kwargs={"is_windy": True, "p_random":0.25, "rewards":{"step":0,"goal":1.0,"fail":-1.0}},
+    entry_point="envs.cliffcustom:CliffCustomEnv",
+)
+
+register(
+    id="CliffSimple-v1",
+>>>>>>> fd30b26e58a477ac2161e409f7fd1276f6a2cc72
     kwargs={"is_windy": True, "p_random":0.25, "rewards":{"step":0,"goal":1.0,"fail":-1.0}},
     entry_point="envs.gridworld:CliffWalking",
 )
