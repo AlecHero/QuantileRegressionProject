@@ -52,17 +52,17 @@ class QuantileRegression():
 
     def _rho(self, u):
         if self.k==0.0:
-            return -(self.tau - (u < 0)).mean(0)
+            return -(self.tau[:, None] - (u < 0))
         else:
-            return -np.abs((self.tau - (u < 0).astype(float)).mean(0)) * du_huber(u, self.k).mean(0)
+            return -np.abs(self.tau[:, None] - (u < 0)) * du_huber(u, self.k)
 
     def update(self, state, action, reward, new_state):
         pred_quantiles = self.theta[state, action]
         greedy_action = self.theta[new_state].mean(1).argmax()
         target_quantiles = reward + self.gamma * self.theta[new_state, greedy_action]
         
-        u = target_quantiles[:, None] - pred_quantiles[None, :]
-        self.theta[state, action] -= self.learning_rate * self._rho(u)
+        u = target_quantiles[None, :] - pred_quantiles[:, None]
+        self.theta[state, action] -= self.learning_rate * self._rho(u).mean(1)
 
     def reset_table(self):
         """Reset the theta values."""
@@ -116,11 +116,7 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     
     policy = np.ones((nS, nA)) / nA
     V = np.zeros(nS)
-
     P = env.unwrapped.P
-    try:
-        desc = env.unwrapped.desc
-    except: pass
 
     # Policy Iteration
     is_policy_stable = False
@@ -129,15 +125,7 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
         while True:
             delta = 0
             for s in range(nS):
-                try:
-                    if s in env.unwrapped._cliff.flatten().nonzero()[0] or s == nS-1:
-                        continue
-                except: pass
-                try:
-                    _pos = np.unravel_index(s, desc.shape)
-                    if desc[_pos] in b"GH": continue
-                except: pass
-                    
+                if env.unwrapped._is_terminal.flatten()[s]: continue                
                 v = V[s]
                 V[s] = sum(policy[s,a] * sum(prob * (reward + gamma * V[next_s])
                         for prob, next_s, reward, done in P[s][a]) for a in range(nA))
@@ -148,14 +136,7 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
         # --- Policy Improvement ---
         is_policy_stable = True
         for s in range(nS):
-            try:
-                if s in env.unwrapped._cliff.flatten().nonzero()[0] or s == nS-1:
-                    continue
-            except: pass
-            try:
-                _pos = np.unravel_index(s, desc.shape)
-                if desc[_pos] in b"GH": continue
-            except: pass
+            if env.unwrapped._is_terminal.flatten()[s]: continue
             old_action = np.argmax(policy[s])
             # Compute action-values
             Q_s = np.array([sum(prob * (reward + gamma * V[next_s]) for prob, next_s, reward, done in P[s][a])
@@ -168,32 +149,23 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     return policy, V
 
 
-def MonteCarlo(env, policy, params, s_init, rng:np.random.Generator, epsilon=0.0, total_episodes=1_000, policy_eps=None):
+def MonteCarlo(env, policy, gamma, s_init=None, total_episodes=5_000):
     from tqdm import tqdm
     returns = []
-    nA = params.action_size
     for _ in tqdm(range(total_episodes)):
-        env.reset()
-        env.unwrapped.s = s_init
-        s = s_init
+        _s, _ = env.reset()
+        s = _s if s_init is None else s_init
+        env.unwrapped.s = s
         G = 0.0
-        discount = params.gamma
+        discount = gamma
         done = False
         
         while not done:
-            if rng.random() < epsilon:
-                if policy_eps is not None:
-                    a = rng.choice(np.flatnonzero(policy_eps[s] >= policy_eps[s].max()))
-                else:
-                    a = rng.integers(nA)
-            else:
-                a = rng.choice(np.flatnonzero(policy[s] == policy[s].max()))
-            
-            next_s, reward, terminated, truncated, _ = env.step(a)
+            sp, r, terminated, truncated, _ = env.step(policy[s].argmax())
             done = terminated or truncated
-            G += discount * reward
-            discount *= params.gamma
-            s = next_s
+            G += discount * r
+            discount *= gamma
+            s = sp
         
         returns.append(G)
     return np.array(returns)
