@@ -21,14 +21,38 @@ class Params(NamedTuple):
     shape: tuple[int, int] # Size of the map (for gridworlds)
 
 
-def rho(tau, u, kappa):
+def HL_grad(u, kappa):
+    return np.where(np.abs(u) <= kappa, u, kappa * np.sign(u))
+
+def rho(Ttheta, theta, tau, kappa):
+    u = Ttheta[:, None] - theta[None, :]
+    
     if kappa == 0:
-        return tau - (u < 0)
+        return -(tau - (u < 0)).mean(0)
     else:
-        return np.abs(tau - (u < 0)) * np.where(np.abs(u) <= kappa, u, kappa * np.sign(u))
+        return -(np.abs(tau - (u < 0)) * HL_grad(u, kappa)).mean(0)
 
+def rho_manual(Ttheta, theta, tau, kappa):
+    N = len(Ttheta)
+    g = np.zeros(N)
+    for i in range(N):
+        for j in range(N):
+            u_ji = Ttheta[j] - theta[i]
+            I = tau[i] - (u_ji < 0).astype(float)
+            if kappa == 0:
+                g[i] += -I / N
+            else:
+                g[i] += -np.abs(I / N) * HL_grad(u_ji, kappa)
+    return g
 
-def train_qrtd(env, policy, params, kappa=0, is_td=False):
+def rho_td(Ttheta, theta, *_args):
+    return -(Ttheta - theta)
+
+def train_qrtd(env, policy, params, kappa=0, rho_type=None):
+    if rho_type == "manual": rho_func = rho_manual
+    elif rho_type == "td": rho_func = rho_td
+    else: rho_func = rho
+    
     tau = (np.arange(params.N) + 0.5) / params.N
     nS = int(env.observation_space.n)
     table = np.zeros((params.n_runs, params.n_episodes//params.save_skip, nS, params.N))
@@ -44,13 +68,9 @@ def train_qrtd(env, policy, params, kappa=0, is_td=False):
                 while not done:
                     sp, r, terminated, truncated, _ = env.step(policy[s].argmax())
                     done = terminated or truncated
+
                     Ttheta = (r + params.gamma * theta[sp])
-                    
-                    if is_td:
-                        theta[s] += lr * (Ttheta - theta[s])
-                    else:
-                        u = Ttheta[:, None] - theta[s][None, :]
-                        theta[s] += lr * rho(tau, u, kappa).mean(0)
+                    theta[s] -= lr * rho_func(Ttheta, theta[s], tau, kappa)
                     s = sp
                 
                 if ep % params.save_skip == 0:
