@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
 
-COLORS = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#FF752B", "#17becf"]
+COLORS = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#FF752B", "#17becf", "#c9f600", "#ff2e97", "#00ffb3"]
 MC_NAME = "$Z_{MC}^\pi$"
 # MC_NAME = "True Dist."
 
