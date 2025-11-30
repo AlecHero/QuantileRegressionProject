@@ -1,112 +1,162 @@
 import numpy as np
-
-def huber(u, k=1.0):
-    return np.where(np.abs(u) < k, 0.5 * np.power(u, 2), k * (np.abs(u) - 0.5 * k))
-
-def du_huber(u, k=1.0):
-    return np.where(np.abs(u) <= k, u / k, k * np.sign(u))
+from tqdm import tqdm
+from typing import NamedTuple
 
 
-class Qlearning:
-    def __init__(self, params):
-        self.state_size = params.state_size
-        self.action_size = params.action_size
-        self.learning_rate = params.learning_rate
-        self.gamma = params.gamma
-        self.reset_table()
+class Params(NamedTuple):
+    model_name: str
+    n_runs: int  # Number of runs
+    n_episodes: int  # Total episodes
+    save_skip: int # How many episodes to skip between each save
+    lr_decay: int # Half lr every lr_decay episodes
+    seed: int # Define a seed so that we get reproducible results
 
-    def update(self, state, action, reward, new_state):
-        """Update Q(s,a):= Q(s,a) + lr [R(s,a) + gamma * max Q(s',a') - Q(s,a)]"""
-        delta = (
-            reward
-            + self.gamma * np.max(self.qtable[new_state, :])
-            - self.qtable[state, action]
-        )
-        self.qtable[state, action] += self.learning_rate * delta
-
-    def reset_table(self):
-        """Reset the Q-table."""
-        self.qtable = np.zeros((self.state_size, self.action_size, 1))
-
-    def get_qtable(self):
-        return self.qtable.copy()
-
-    def get_table(self):
-        return self.get_qtable()
-
-    def set_learning_rate(self, learning_rate):
-        self.learning_rate = learning_rate
-
-
-class QuantileRegression():
-    def __init__(self, params, init_theta=None):
-        self.learning_rate = params.learning_rate
-        self.gamma = params.gamma
-        self.state_size = params.state_size
-        self.action_size = params.action_size
-        self.n_quantiles = params.n_quantiles
-        self.k = params.huber_k
-        self.init_theta = init_theta.copy()
-        self.reset_table()
-        self.tau = (np.arange(self.n_quantiles) + 0.5) / self.n_quantiles
-
-    def _rho(self, u):
-        if self.k==0.0:
-            return -(self.tau[:, None] - (u < 0))
-        else:
-            return -np.abs(self.tau[:, None] - (u < 0)) * du_huber(u, self.k)
-
-    def update(self, state, action, reward, new_state):
-        pred_quantiles = self.theta[state, action]
-        greedy_action = self.theta[new_state].mean(1).argmax()
-        target_quantiles = reward + self.gamma * self.theta[new_state, greedy_action]
-        
-        u = target_quantiles[None, :] - pred_quantiles[:, None]
-        self.theta[state, action] -= self.learning_rate * self._rho(u).mean(1)
-
-    def reset_table(self):
-        """Reset the theta values."""
-        if self.init_theta is not None:
-            self.theta = self.init_theta.copy()
-        else:
-            self.theta = np.zeros((self.state_size, self.action_size, self.n_quantiles))
-
-    def get_qtable(self):
-        return self.theta.mean(2)
+    N: int # Number of quantiles
+    alpha: float # Learning rate
+    gamma: float # Discounting rate
+    epsilon: float # Exploration probability
     
-    def get_table(self):
-        return self.theta.copy()
-
-    def set_learning_rate(self, learning_rate):
-        self.learning_rate = learning_rate
+    nA: int # Number of possible actions
+    nS: int # Number of possible states
+    shape: tuple[int, int] # Size of the map (for gridworlds)
 
 
 class EpsilonGreedy:
-    def __init__(self, epsilon, rng, policy=None):
+    def __init__(self, epsilon, rng):
         self.epsilon = epsilon
         self.rng = rng
-        self.policy = policy
 
-    def choose_action(self, action_space, state, qtable):
-        """Choose an action `a` in the current world state (s)."""
-        # First we randomize a number
-        explor_exploit_tradeoff = self.rng.uniform(0, 1)
-
-        # Exploration
-        if explor_exploit_tradeoff < self.epsilon:
-            action = action_space.sample()
-
-        # Exploitation (taking the biggest Q-value for this state)
+    def choose_action(self, action_space, state, policy):
+        if self.rng.uniform(0, 1) < self.epsilon:
+            return action_space.sample()
         else:
-            # Break ties randomly
-            # Find the indices where the Q-value equals the maximum value
-            # Choose a random action from the indices where the Q-value is maximum
-            if self.policy is None:
-                max_ids = np.flatnonzero(qtable[state] == qtable[state].max())
-            else:
-                max_ids = np.flatnonzero(self.policy[state] == self.policy[state].max())
-            action = self.rng.choice(max_ids)
-        return action
+            return self.rng.choice(np.flatnonzero(policy[state] == policy[state].max()))
+
+
+class Learner():
+    def __init__(self, params, policy=None):
+        self.n_episodes = params.n_episodes
+        self.n_runs = params.n_runs
+        self.save_skip = params.save_skip
+        self.seed = params.seed
+        
+        self.nS = params.nS
+        self.nA = params.nA
+        self.N = params.N
+        
+        self.gamma = params.gamma
+        self.alpha = params.alpha
+        self.policy = policy
+        self.reset_theta()
+
+    def update(self, s, a, r, sp):
+        raise NotImplementedError
+
+    def train(self, env, explorer, scheduler):
+        self.explorer = explorer
+        self.A = env.action_space
+        np.random.seed(self.seed)
+        table = np.zeros((self.n_runs, self.n_episodes//self.save_skip, self.nS, self.nA, self.N))
+        
+        with tqdm(total=self.n_runs * self.n_episodes) as pbar:
+            for run in range(self.n_runs):
+                self.reset_theta()
+                
+                for t in range(self.n_episodes):
+                    self.lr = scheduler(t)
+                    s, _ = env.reset()
+                    a = self.explorer.choose_action(self.A, s, self.get_policy())
+                    
+                    done = False
+                    while not done:
+                        sp, r, terminated, truncated, _ = env.step(a)
+                        done = terminated or truncated
+                        self.update(s, a, r, sp)
+                        
+                        a = self.explorer.choose_action(self.A, sp, self.get_policy())
+                        s = sp
+                    
+                    if t != 0 and t % self.save_skip == 0:
+                        table[run, t//self.save_skip] = self.theta.copy()
+                    
+                    pbar.set_postfix(run=run+1, t=t+1)
+                    pbar.update(1)
+        return table
+
+    def reset_theta(self):
+        self.theta = np.zeros((self.nS, self.nA, self.N))
+    
+    def set_alpha(self, alpha):
+        self.alpha = alpha
+    
+    def get_Q(self, s=None):
+        return self.theta.mean(-1) if s is None else self.theta[s].mean(-1)
+
+    def get_policy(self):
+        return self.policy if self.policy is not None else self.get_Q()
+
+    def get_ap(self, sp):
+        raise NotImplementedError
+
+
+class Qlearner(Learner):
+    def __init__(self, params, policy=None):
+        super().__init__(params, policy=policy)
+        self.N = 1
+        self.reset_theta()
+    
+    def update(self, s, a, r, sp):
+        a_star = self.get_Q(sp).argmax()
+        Ttheta = r + self.gamma * self.theta[sp, a_star]
+        
+        self.theta[s, a] += self.lr * (Ttheta - self.theta[s, a])
+
+
+class SARSA(Qlearner):
+    def get_ap(self, sp):
+        return self.explorer.choose_action(self.A, sp, self.get_policy())
+
+    def update(self, s, a, r, sp):
+        ap = self.get_ap(sp)
+        self.theta[s, a] += self.lr * (r + self.gamma * self.theta[sp, ap] - self.theta[s, a])
+
+
+class TD(Qlearner):
+    def update(self, s, a, r, sp):
+        Ttheta = r + self.gamma * self.theta[sp]
+        self.theta[s] += self.lr * (Ttheta - self.theta[s])
+
+
+class QR(Learner):
+    def __init__(self, kappa, params, policy=None):
+        super().__init__(params, policy=policy)
+        self.tau = (np.arange(self.N) + 0.5) / self.N
+        self.kappa = kappa
+    
+    @staticmethod
+    def HL_grad(u, kappa):
+        return np.where(np.abs(u) <= kappa, u, kappa * np.sign(u))
+    
+    def _rho(self, u):
+        if self.kappa == 0.0:
+            return (self.tau - (u < 0)).mean(0)
+        else:
+            return (np.abs(self.tau - (u < 0)) * QR.HL_grad(u, self.kappa)).mean(0)
+    
+    def update(self, s, a, r, sp):
+        a_star = self.get_Q(sp).argmax()
+        Ttheta = r + self.gamma * self.theta[sp, a_star]
+        
+        u = Ttheta[:, None] - self.theta[s, a][None, :]
+        self.theta[s, a] += self.lr * self._rho(u)
+
+
+class QRTD(QR):
+    def update(self, s, a, r, sp):
+        Ttheta = r + self.gamma * self.theta[sp]
+        
+        u = Ttheta[:, None] - self.theta[s][None, :]
+        self.theta[s] += self.lr * self._rho(u)
 
 
 def PolicyIteration(env, gamma=0.99, theta=1e-8):
@@ -149,7 +199,7 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     return policy, V
 
 
-def MonteCarlo(env, policy, gamma, s_init=None, total_episodes=5_000):
+def MonteCarlo(env, policy, gamma, s_init=None, a_init=None, total_episodes=5_000):
     from tqdm import tqdm
     returns = []
     for _ in tqdm(range(total_episodes)):
@@ -157,11 +207,16 @@ def MonteCarlo(env, policy, gamma, s_init=None, total_episodes=5_000):
         s = _s if s_init is None else s_init
         env.unwrapped.s = s
         G = 0.0
-        discount = gamma
+        discount = 1.0
         done = False
+        _a = a_init
         
         while not done:
-            sp, r, terminated, truncated, _ = env.step(policy[s].argmax())
+            if _a is not None:
+                a = _a
+                _a = None
+            else: a = policy[s].argmax()
+            sp, r, terminated, truncated, _ = env.step(a)
             done = terminated or truncated
             G += discount * r
             discount *= gamma
@@ -169,3 +224,36 @@ def MonteCarlo(env, policy, gamma, s_init=None, total_episodes=5_000):
         
         returns.append(G)
     return np.array(returns)
+
+
+class MixtureOfGaussians:
+    def __init__(self, pis, mus, sigmas, rng:np.random.Generator):
+        self.pis = np.array(pis)
+        self.mus = np.array(mus)
+        self.sigmas = np.array(sigmas)
+        self.rng = rng
+
+    def draw_samples(self, n):
+        samples = np.empty(n)
+        for i in range(n):
+            idx = self.rng.multinomial(1, self.pis).argmax()
+            samples[i] = self.rng.normal(self.mus[idx], self.sigmas[idx])
+        return samples
+
+    def pdf(self, x):
+        return np.sum([pi * np.exp(-0.5 * ((x - mu) / s) ** 2) / (s * np.sqrt(2 * np.pi))
+                       for pi, mu, s in zip(self.pis, self.mus, self.sigmas)], axis=0)
+
+    def ppf(self, q, x_min=None, x_max=None, num_points=100_000):
+        from scipy.interpolate import interp1d
+        x_min = self.mus.min() - 5 * self.sigmas.max()
+        x_max = self.mus.max() + 5 * self.sigmas.max()
+        
+        _cdf_x = np.linspace(x_min, x_max, num_points)
+        pdf_vals = self.pdf(_cdf_x)
+        
+        _cdf_vals = np.cumsum(pdf_vals)
+        _cdf_vals /= _cdf_vals[-1]
+        
+        inv_cdf = interp1d(_cdf_vals, _cdf_x, bounds_error=False, fill_value=(_cdf_x[0], _cdf_x[-1]))
+        return inv_cdf(q)

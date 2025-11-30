@@ -63,7 +63,7 @@ def train_qrtd(env, policy, params, kappa=0, rho_type=None):
             
             for ep in range(params.n_episodes):
                 # lr = params.alpha**((1 + ep) // 2000)
-                lr = (params.alpha[run] if isinstance(params.alpha, list) else params.alpha) * 1/((1+ep)**0.5)#**0.66)
+                lr = (params.alpha[run%len(params.alpha)] if isinstance(params.alpha, list) else params.alpha) * 1/((1+0.5*ep)**0.5)#**0.66)
                 s, _ = env.reset()
                 done = False
                 while not done:

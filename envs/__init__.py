@@ -15,7 +15,7 @@ register(
 
 register(
     id="Walkway",
-    kwargs={"rewards":{"step":0.0,"goal":1.0,"fail":0.0}, "shape":(1,10), "reward_variance":1.0},
+    kwargs={"rewards":{"step":-1.0,"goal":1.0,"fail":0.0}, "shape":(1,10)},
     entry_point="envs.gridworld:Walkway",
 )
 

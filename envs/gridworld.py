@@ -7,7 +7,7 @@ from gymnasium import spaces
 from importlib import resources
 
 class GridWorld(CliffWalkingEnv):
-    def __init__(self, p_random = 0.1, is_slippery: bool = False, is_windy: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}, reward_variance=0.0, render_mode: str | None = "rgb_array"):
+    def __init__(self, p_random = 0.1, is_slippery: bool = False, is_windy: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}, MoG=None, render_mode: str | None = "rgb_array"):
         self.shape = shape
         self.start_state_index = np.ravel_multi_index((self.shape[0]-1, 0), self.shape)
         self.goal_pos = self.shape[0]-1, self.shape[1]-1
@@ -15,8 +15,8 @@ class GridWorld(CliffWalkingEnv):
         self.nS = np.prod(self.shape)
         self.nA = 4
 
+        self.MoG = MoG
         self.rewards = rewards
-        self.reward_variance = reward_variance
         self.is_slippery = is_slippery
         self.is_windy = is_windy
         self.p_random = p_random
@@ -84,10 +84,8 @@ class GridWorld(CliffWalkingEnv):
 
     def step(self, action: int) -> tuple[int, float, bool, bool, dict]:
         state, reward, terminated, truncated, info = super().step(action)
-        r_norm = 0.0
-        if self.reward_variance > 0.0 and abs(reward) > 0.0:
-            r_norm = np.random.normal(0.0, self.reward_variance)
-            reward += r_norm
+        if self.MoG is not None and reward == self.rewards["goal"]:
+            reward = self.MoG.draw_samples(1)[0]
         return state, reward, terminated, truncated, info
 
     def _render_gui(self, mode):
@@ -191,7 +189,7 @@ class CliffWalking(GridWorld):
 
 
 class Walkway(GridWorld):
-    def __init__(self, shape=(4,12), *args, **kwargs):
+    def __init__(self, shape=(1,10), *args, **kwargs):
         self._cliff = np.zeros(shape, dtype=bool)
         super().__init__(shape=shape, *args, **kwargs)
 

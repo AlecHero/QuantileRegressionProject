@@ -17,27 +17,32 @@ def get_kde(q, bandwidth):
     return return_kde
 
 
-def plot_pdf(plot_objs, returns, bandwidth=0.08, figsize=(5,4), show_hist=False, x_spacing=0.03, N=32, save_to=None):
+def plot_pdf(plot_objs, returns=None, bandwidth=0.08, figsize=(5,4), show_hist=False, x_spacing=0.03, N=32, save_to=None, hist_alpha=0.2, include_legend=False, linewidth=1.0, ylabel=None, returns_name=MC_NAME):
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=figsize)
-    fig.supylabel("Estimated Value Distribution", fontweight="bold")
+    if ylabel is None:
+        fig.supylabel("Estimated Value Distribution", fontweight="bold", fontsize="large")
+    else:
+        fig.supylabel(ylabel, fontweight="bold", fontsize="large")        
 
-    all_data = np.concatenate([obj[0] for obj in plot_objs] + [returns])
+    all_data = np.concatenate([obj[0] for obj in plot_objs] + ([returns] if returns is not None else []))
     bins = np.histogram_bin_edges(all_data, bins=N)
     xmin, xmax = all_data.min(), all_data.max()
     x_add = max(np.abs(xmin), np.abs(xmax))*x_spacing
     Xs = np.linspace(xmin - x_add, xmax + x_add, 500)
     
-    ax.plot(Xs, get_kde(returns, bandwidth=bandwidth)(Xs), label=MC_NAME, linestyle="--", linewidth=2, color=COLORS[0])
-    if show_hist: ax.hist(returns, bins=bins, density=True, alpha=0.2, color=COLORS[0])
+    if returns is not None:
+        ax.plot(Xs, get_kde(returns, bandwidth=bandwidth)(Xs), label=returns_name, linestyle="--", linewidth=2, color=COLORS[0])
+        if show_hist: ax.hist(returns, bins=bins, density=True, alpha=hist_alpha, color=COLORS[0])
     
     for idx, (quantile, name) in enumerate(plot_objs):
-        ax.plot(Xs, get_kde(quantile, bandwidth=bandwidth)(Xs), label=name, color=COLORS[idx+1])
-        if show_hist: ax.hist(quantile, bins=bins, density=True, alpha=0.2, color=COLORS[idx+1])
+        ax.plot(Xs, get_kde(quantile, bandwidth=bandwidth)(Xs), label=name, color=COLORS[idx+1], linewidth=linewidth)
+        if show_hist: ax.hist(quantile, bins=bins, density=True, alpha=hist_alpha, color=COLORS[idx+1])
 
     ax.set_xlim((Xs.min(), Xs.max()))
-    ax.set_xlabel("Returns", fontweight="bold")
+    ax.set_xlabel("Returns", fontweight="bold", fontsize="large")
     ax.grid(True)
+    if include_legend: ax.legend(prop={"weight":"bold", "size":"large"})
     plt.tight_layout()
     
     if save_to is not None:
@@ -45,14 +50,14 @@ def plot_pdf(plot_objs, returns, bandwidth=0.08, figsize=(5,4), show_hist=False,
         plt.savefig(f"{save_to}/pdf_compare.pdf", format="pdf", bbox_inches="tight")
 
 
-def plot_cdf(plot_objs, returns, tau, figsize=(5,4), save_to=None):
+def plot_cdf(plot_objs, returns, tau, figsize=(5,4), save_to=None, linewidths=(2,2), returns_name=MC_NAME):
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=figsize)
     fig.supylabel("Cumulative Value Distribution", fontweight="bold")
 
-    ax.plot(returns, tau, label=MC_NAME, linestyle="--", linewidth=2, color=COLORS[0])
+    ax.plot(returns, tau, label=returns_name, linestyle="--", linewidth=linewidths[0], color=COLORS[0])
     for idx, (quantile, name) in enumerate(plot_objs):
-        ax.plot(quantile, tau, label=name, color=COLORS[idx+1])
+        ax.plot(quantile, tau, label=name, color=COLORS[idx+1], linewidth=linewidths[1])
 
     ax.set_ylim(0.0,1.0)
     ax.set_xlabel("Returns", fontweight="bold")
@@ -75,7 +80,6 @@ def get_fixed(stat):
 def plot_metrics(plot_qs, returns, figsize=(10,6), save_skip=1.0, save_to=None, ylim0=None, ylim1=None, alphas=[0.3,0.3]):
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, axes = plt.subplots(2, 1, figsize=figsize, gridspec_kw={'hspace': 0.33})
-    fig.supxlabel("Episodes", fontweight="bold")
 
     for idx, (quantile, name) in enumerate(plot_qs):
         vse = VSE(returns, quantile)
@@ -90,17 +94,18 @@ def plot_metrics(plot_qs, returns, figsize=(10,6), save_skip=1.0, save_to=None, 
             axes[1].fill_between(range(w1.shape[1]), sd1, sd2, alpha=alphas[1], color=COLORS[idx+1])
     
     axes[1].set_title("Value Distribution Approximation Error", fontweight="bold")
-    axes[1].set_ylabel("$ W_1(Z_{True}, Z_{QR}) $")
+    axes[1].set_ylabel("$ W_1(Z_{True}, Z) $", fontsize="large")
     axes[1].set_yscale("log")
     ticks = axes[1].get_xticks().astype(int)
     axes[1].set_xticks(ticks, [f"{x:,}" for x in ticks*save_skip])
     axes[1].set_xlim(ticks[1], ticks[-2])
     if ylim1 is not None: axes[1].set_ylim(*ylim1)
     axes[1].legend(loc=1, prop={"weight":"bold", "size":"large"})
+    axes[1].set_xlabel("Episodes", fontweight="bold", fontsize="large")
 
     if ylim0 is not None: axes[0].set_ylim(*ylim0)
     axes[0].set_title("Value Function Approximation Error", fontweight="bold")
-    axes[0].set_ylabel("$ (V_{True} - V_{QR} )^2 $")
+    axes[0].set_ylabel("$ (V_{True} - V)^2 $", fontsize="large")
     axes[0].set_yscale("log")
     axes[0].set_xticks(ticks, [f"{x:,}" for x in ticks*save_skip])
     axes[0].set_xlim(ticks[1], ticks[-2])
@@ -111,11 +116,11 @@ def plot_metrics(plot_qs, returns, figsize=(10,6), save_skip=1.0, save_to=None, 
         plt.savefig(f"{save_to}/true_compare.pdf", format="pdf", bbox_inches="tight")
 
 
-def plot_qq(plot_objs, returns, figsize=(4,4), save_to=None):
+def plot_qq(plot_objs, returns, figsize=(4,4), save_to=None, alpha=0.3, markersize=10):
     fig, ax = plt.subplots(figsize=figsize)
     ax.plot(returns, returns, "--", label=MC_NAME, color=COLORS[0])
     for idx, (quantile, name) in enumerate(plot_objs):
-        ax.plot(returns, quantile, "h", label=name, alpha=0.3, markersize=10, color=COLORS[idx+1])
+        ax.plot(returns, quantile, "h", label=name, alpha=alpha, markersize=markersize, color=COLORS[idx+1])
     ax.set_box_aspect(1)
 
     ax.set_xlabel(MC_NAME, fontweight="bold")
