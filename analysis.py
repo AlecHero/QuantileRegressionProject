@@ -77,7 +77,7 @@ def get_fixed(stat):
     return np.exp(mu_log), np.exp(mu_log - sd_log), np.exp(mu_log + sd_log)
 
 
-def plot_metrics(plot_qs, returns, figsize=(10,6), save_skip=1.0, save_to=None, ylim0=None, ylim1=None, alphas=[0.3,0.3]):
+def plot_metrics(plot_qs, returns, figsize=(10,6), save_skip=1.0, save_to=None, ylim0=None, ylim1=None, alphas=[0.3,0.3], true_dist="{True}"):
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, axes = plt.subplots(2, 1, figsize=figsize, gridspec_kw={'hspace': 0.33})
 
@@ -94,7 +94,7 @@ def plot_metrics(plot_qs, returns, figsize=(10,6), save_skip=1.0, save_to=None, 
             axes[1].fill_between(range(w1.shape[1]), sd1, sd2, alpha=alphas[1], color=COLORS[idx+1])
     
     axes[1].set_title("Value Distribution Approximation Error", fontweight="bold")
-    axes[1].set_ylabel("$ W_1(Z_{True}, Z) $", fontsize="large")
+    axes[1].set_ylabel("$ W_1(Z_"+true_dist+", Z) $", fontsize="large")
     axes[1].set_yscale("log")
     ticks = axes[1].get_xticks().astype(int)
     axes[1].set_xticks(ticks, [f"{x:,}" for x in ticks*save_skip])
@@ -105,7 +105,7 @@ def plot_metrics(plot_qs, returns, figsize=(10,6), save_skip=1.0, save_to=None, 
 
     if ylim0 is not None: axes[0].set_ylim(*ylim0)
     axes[0].set_title("Value Function Approximation Error", fontweight="bold")
-    axes[0].set_ylabel("$ (V_{True} - V)^2 $", fontsize="large")
+    axes[0].set_ylabel("$ (V_"+true_dist+" - V)^2 $", fontsize="large")
     axes[0].set_yscale("log")
     axes[0].set_xticks(ticks, [f"{x:,}" for x in ticks*save_skip])
     axes[0].set_xlim(ticks[1], ticks[-2])
@@ -116,7 +116,7 @@ def plot_metrics(plot_qs, returns, figsize=(10,6), save_skip=1.0, save_to=None, 
         plt.savefig(f"{save_to}/true_compare.pdf", format="pdf", bbox_inches="tight")
 
 
-def plot_qq(plot_objs, returns, figsize=(4,4), save_to=None, alpha=0.3, markersize=10):
+def plot_qq(plot_objs, returns, figsize=(4,4), save_to=None, alpha=0.3, markersize=10, lims=None):
     fig, ax = plt.subplots(figsize=figsize)
     ax.plot(returns, returns, "--", label=MC_NAME, color=COLORS[0])
     for idx, (quantile, name) in enumerate(plot_objs):
@@ -127,6 +127,10 @@ def plot_qq(plot_objs, returns, figsize=(4,4), save_to=None, alpha=0.3, markersi
     ax.set_ylabel("Estimated Quantiles", fontweight="bold")
     ax.grid(True)
     ax.legend(prop={"weight":"bold", "size":"large"})
+
+    if lims is not None:
+        ax.set_xlim(*lims)
+        ax.set_ylim(*lims)
 
     for lh in ax.get_legend().legend_handles: lh.set_alpha(1)
     plt.tight_layout()
