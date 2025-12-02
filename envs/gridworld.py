@@ -7,7 +7,7 @@ from gymnasium import spaces
 from importlib import resources
 
 class GridWorld(CliffWalkingEnv):
-    def __init__(self, p_random = 0.1, is_slippery: bool = False, is_windy: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}, MoG=None, render_mode: str | None = "rgb_array"):
+    def __init__(self, p_random = 0.666, is_slippery: bool = False, is_windy: bool = False, shape=(4, 12), rewards={"step":-1,"goal":10,"fail":-100}, MoG=None, render_mode: str | None = "rgb_array"):
         self.shape = shape
         self.start_state_index = np.ravel_multi_index((self.shape[0]-1, 0), self.shape)
         self.goal_pos = self.shape[0]-1, self.shape[1]-1
@@ -69,7 +69,7 @@ class GridWorld(CliffWalkingEnv):
 
     def _calculate_transition_prob(self, current: list[int] | np.ndarray, move: int) -> list[tuple[float, Any, int, bool]]:
         if self.is_slippery:
-            deltas = [(POSITION_MAPPING[act], 1.0 / self.nA) for act in [(move - 1) % 4, move, (move + 1) % 4]]
+            deltas = [(POSITION_MAPPING[act], self.p_random / 2) for act in [(move - 1) % 4, (move + 1) % 4]] + [(POSITION_MAPPING[move], 1.0-self.p_random)]
         elif self.is_windy:
             deltas = [(POSITION_MAPPING[act], self.p_random / self.nA) for act in range(self.nA)] + [(POSITION_MAPPING[move], 1.0-self.p_random)]
         else:

@@ -15,6 +15,7 @@ class Params(NamedTuple):
     alpha: float # Learning rate
     gamma: float # Discounting rate
     epsilon: float # Exploration probability
+    kappa: float # Huber Kappa value
     
     nA: int # Number of possible actions
     nS: int # Number of possible states
@@ -22,19 +23,18 @@ class Params(NamedTuple):
 
 
 class EpsilonGreedy:
-    def __init__(self, epsilon, rng):
-        self.epsilon = epsilon
+    def __init__(self, rng):
         self.rng = rng
 
-    def choose_action(self, action_space, state, policy):
-        if self.rng.uniform(0, 1) < self.epsilon:
+    def choose_action(self, epsilon, action_space, state, policy):
+        if self.rng.uniform(0, 1) < epsilon:
             return action_space.sample()
         else:
             return self.rng.choice(np.flatnonzero(policy[state] == policy[state].max()))
 
 
 class Learner():
-    def __init__(self, params, policy=None):
+    def __init__(self, params, policy=None, init_theta=None):
         self.n_episodes = params.n_episodes
         self.n_runs = params.n_runs
         self.save_skip = params.save_skip
@@ -44,9 +44,12 @@ class Learner():
         self.nA = params.nA
         self.N = params.N
         
+        self.kappa = params.kappa
+        
         self.gamma = params.gamma
-        self.alpha = params.alpha
+        self.epsilon = params.epsilon
         self.policy = policy
+        self.init_theta = init_theta
         self.reset_theta()
 
     def update(self, s, a, r, sp):
@@ -65,7 +68,7 @@ class Learner():
                 for t in range(self.n_episodes):
                     self.lr = scheduler(t)
                     s, _ = env.reset()
-                    a = self.explorer.choose_action(self.A, s, self.get_policy())
+                    a = self.explorer.choose_action(self.epsilon, self.A, s, self.get_policy())
                     
                     done = False
                     while not done:
@@ -73,8 +76,8 @@ class Learner():
                         done = terminated or truncated
                         self.update(s, a, r, sp)
                         
-                        a = self.explorer.choose_action(self.A, sp, self.get_policy())
                         s = sp
+                        a = self.explorer.choose_action(self.epsilon, self.A, s, self.get_policy())
                     
                     if t != 0 and t % self.save_skip == 0:
                         table[run, t//self.save_skip] = self.theta.copy()
@@ -84,10 +87,10 @@ class Learner():
         return table
 
     def reset_theta(self):
-        self.theta = np.zeros((self.nS, self.nA, self.N))
-    
-    def set_alpha(self, alpha):
-        self.alpha = alpha
+        if self.init_theta is None:
+            self.theta = np.zeros((self.nS, self.nA, self.N))
+        else:
+            self.theta = self.init_theta.copy()
     
     def get_Q(self, s=None):
         return self.theta.mean(-1) if s is None else self.theta[s].mean(-1)
@@ -100,25 +103,26 @@ class Learner():
 
 
 class Qlearner(Learner):
-    def __init__(self, params, policy=None):
-        super().__init__(params, policy=policy)
+    def __init__(self, params, policy=None, init_theta=None):
+        super().__init__(params, policy=policy, init_theta=init_theta)
         self.N = 1
         self.reset_theta()
     
     def update(self, s, a, r, sp):
-        a_star = self.get_Q(sp).argmax()
-        Ttheta = r + self.gamma * self.theta[sp, a_star]
-        
+        if (self.epsilon == 0.0 or self.epsilon is None) and self.policy is not None:
+            Ttheta = r + self.gamma *  np.dot(self.policy[sp], self.theta[sp])
+        else:
+            Ttheta = r + self.gamma * self.theta[sp, self.get_Q(sp).argmax()]
         self.theta[s, a] += self.lr * (Ttheta - self.theta[s, a])
 
 
 class SARSA(Qlearner):
     def get_ap(self, sp):
-        return self.explorer.choose_action(self.A, sp, self.get_policy())
+        return self.explorer.choose_action(self.epsilon, self.A, sp, self.get_policy())
 
     def update(self, s, a, r, sp):
-        ap = self.get_ap(sp)
-        self.theta[s, a] += self.lr * (r + self.gamma * self.theta[sp, ap] - self.theta[s, a])
+        Ttheta = r + self.gamma * self.theta[sp, self.get_ap(sp)]
+        self.theta[s, a] += self.lr * (Ttheta - self.theta[s, a])
 
 
 class TD(Qlearner):
@@ -128,10 +132,9 @@ class TD(Qlearner):
 
 
 class QR(Learner):
-    def __init__(self, kappa, params, policy=None):
-        super().__init__(params, policy=policy)
+    def __init__(self, params, policy=None, init_theta=None):
+        super().__init__(params, policy=policy, init_theta=init_theta)
         self.tau = (np.arange(self.N) + 0.5) / self.N
-        self.kappa = kappa
     
     @staticmethod
     def HL_grad(u, kappa):
@@ -139,14 +142,15 @@ class QR(Learner):
     
     def _rho(self, u):
         if self.kappa == 0.0:
-            return (self.tau - (u < 0)).mean(0)
+            return (self.tau - (u < 0).astype(float)).mean(0)
         else:
-            return (np.abs(self.tau - (u < 0)) * QR.HL_grad(u, self.kappa)).mean(0)
+            return (np.abs(self.tau - (u < 0).astype(float)) * QR.HL_grad(u, self.kappa)).mean(0)
     
     def update(self, s, a, r, sp):
-        a_star = self.get_Q(sp).argmax()
-        Ttheta = r + self.gamma * self.theta[sp, a_star]
-        
+        if (self.epsilon == 0.0 or self.epsilon is None) and self.policy is not None:
+            Ttheta = r + self.gamma * np.dot(self.policy[sp], self.theta[sp])
+        else:
+            Ttheta = r + self.gamma * self.theta[sp, self.get_Q(sp).argmax()]
         u = Ttheta[:, None] - self.theta[s, a][None, :]
         self.theta[s, a] += self.lr * self._rho(u)
 
@@ -154,9 +158,18 @@ class QR(Learner):
 class QRTD(QR):
     def update(self, s, a, r, sp):
         Ttheta = r + self.gamma * self.theta[sp]
-        
         u = Ttheta[:, None] - self.theta[s][None, :]
         self.theta[s] += self.lr * self._rho(u)
+
+
+class QR_SARSA(QR):
+    def get_ap(self, sp):
+        return self.explorer.choose_action(self.epsilon, self.A, sp, self.get_policy())
+
+    def update(self, s, a, r, sp):
+        Ttheta = r + self.gamma * self.theta[sp, self.get_ap(sp)]
+        u = Ttheta[:, None] - self.theta[s, a][None, :]
+        self.theta[s, a] += self.lr * self._rho(u)
 
 
 def PolicyIteration(env, gamma=0.99, theta=1e-8):
@@ -199,9 +212,10 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     return policy, V
 
 
-def MonteCarlo(env, policy, gamma, s_init=None, a_init=None, total_episodes=5_000):
+def MonteCarlo(env, policy, gamma, s_init=None, a_init=None, total_episodes=5_000, return_steps=False):
     from tqdm import tqdm
     returns = []
+    steps = []
     for _ in tqdm(range(total_episodes)):
         _s, _ = env.reset()
         s = _s if s_init is None else s_init
@@ -209,6 +223,7 @@ def MonteCarlo(env, policy, gamma, s_init=None, a_init=None, total_episodes=5_00
         G = 0.0
         discount = 1.0
         done = False
+        step = 0
         _a = a_init
         
         while not done:
@@ -221,9 +236,11 @@ def MonteCarlo(env, policy, gamma, s_init=None, a_init=None, total_episodes=5_00
             G += discount * r
             discount *= gamma
             s = sp
+            step += 1
         
         returns.append(G)
-    return np.array(returns)
+        steps.append(step)
+    return np.asarray(returns) if not return_steps else np.asarray(steps)
 
 
 class MixtureOfGaussians:

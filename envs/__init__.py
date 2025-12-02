@@ -26,6 +26,6 @@ register(
 
 register(
     id="WindyRooms",
-    kwargs={"rewards":{"step":0.0,"goal":1.0,"fail":0.0}},
+    kwargs={"p_random":0.1, "rewards":{"step":0.0,"goal":1.0,"fail":0.0}},
     entry_point="envs.gridworld:WindyRooms",
 )
