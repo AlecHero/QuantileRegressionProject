@@ -22,7 +22,8 @@ class GridWorld(CliffWalkingEnv):
         self.p_random = p_random
 
         self._cliff = getattr(self, "_cliff")
-        self._is_terminal = self._cliff.copy()
+        self._is_terminal = np.zeros(self.shape, dtype=bool)
+        self._is_terminal[self._cliff] = True if self.rewards["fail"] != 0 else False
         self._is_terminal[tuple(self.goal_pos)] = True
         
         self._reward = np.full(self.shape, self.rewards["step"])
@@ -78,7 +79,9 @@ class GridWorld(CliffWalkingEnv):
         outcomes = []
         for delta, p in deltas:
             new_pos = tuple(self._limit_coordinates(np.array(current) + np.array(delta)).astype(int))
-            outcomes.append((p, self._to_state(new_pos), self._reward[new_pos], self._is_terminal[new_pos]))
+            new_state = self._to_state(new_pos)
+            if self._cliff[new_pos] and self.rewards["fail"] == 0: new_state = self.start_state_index
+            outcomes.append((p, new_state, self._reward[new_pos], self._is_terminal[new_pos]))
         
         return outcomes
 
@@ -208,7 +211,7 @@ class WindyRooms(GridWorld):
 
     def _limit_cliff(self, pos, new_pos): return pos if self._cliff[tuple(new_pos)] else new_pos
 
-    def _calculate_transition_prob(self, pos: list[int] | np.ndarray, action: int) -> list[tuple[float, int, float, bool]]:
+    def _calculate_transition_prob(self, pos: list[int] | np.ndarray, action: int) -> list[tuple[float, int, float, bool]]:        
         pos = np.array(pos)
         outcomes = []
         
@@ -223,4 +226,26 @@ class WindyRooms(GridWorld):
         new_pos = self._limit_coordinates(wind_pos + dir)
         new_pos = self._limit_cliff(wind_pos, new_pos)
         outcomes.append((1.0 - self.p_random, self._to_state(new_pos), self._reward[tuple(new_pos)], self._is_terminal[tuple(new_pos)]))
+        return outcomes
+
+
+class WindyRoomsNegative(WindyRooms):
+    def _calculate_transition_prob(self, pos: list[int] | np.ndarray, action: int) -> list[tuple[float, int, float, bool]]:
+        pos = np.array(pos)
+        outcomes = []
+        
+        for a in range(self.nA):
+            dir = np.array(POSITION_MAPPING[a])
+            new_pos = self._limit_coordinates(pos + dir)
+            new_pos = self._limit_cliff(pos, new_pos)
+            
+            rew = self._reward[tuple(new_pos)] if new_pos[0] != 0 else -0.2
+            outcomes.append((self.p_random / 4.0, self._to_state(new_pos), rew, self._is_terminal[tuple(new_pos)]))
+
+        dir = np.array(POSITION_MAPPING[action])
+        wind_pos = self._limit_coordinates(pos + np.array(POSITION_MAPPING[UP]) * self._wind[tuple(pos)])
+        new_pos = self._limit_coordinates(wind_pos + dir)
+        new_pos = self._limit_cliff(wind_pos, new_pos)
+        rew = self._reward[tuple(new_pos)] if new_pos[0] != 0 else -0.2
+        outcomes.append((1.0 - self.p_random, self._to_state(new_pos), rew, self._is_terminal[tuple(new_pos)]))
         return outcomes

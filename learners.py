@@ -79,7 +79,7 @@ class Learner():
                         s = sp
                         a = self.explorer.choose_action(self.epsilon, self.A, s, self.get_policy())
                     
-                    if t != 0 and t % self.save_skip == 0:
+                    if (t != 0 and t % self.save_skip == 0) or self.save_skip == 1:
                         table[run, t//self.save_skip] = self.theta.copy()
                     
                     pbar.set_postfix(run=run+1, t=t+1)
@@ -212,11 +212,11 @@ def PolicyIteration(env, gamma=0.99, theta=1e-8):
     return policy, V
 
 
-def MonteCarlo(env, policy, gamma, s_init=None, a_init=None, total_episodes=5_000, return_steps=False):
+def MonteCarlo(env, policy, gamma, s_init=None, a_init=None, total_episodes=5_000, return_steps=False, use_tqdm=True):
     from tqdm import tqdm
     returns = []
     steps = []
-    for _ in tqdm(range(total_episodes)):
+    for _ in tqdm(range(total_episodes), disable=not use_tqdm):
         _s, _ = env.reset()
         s = _s if s_init is None else s_init
         env.unwrapped.s = s

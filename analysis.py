@@ -17,7 +17,7 @@ def get_kde(q, bandwidth):
     return return_kde
 
 
-def plot_pdf(plot_objs, returns=None, bandwidth=0.08, figsize=(5,4), show_hist=False, x_spacing=0.03, N=32, save_to=None, hist_alpha=0.2, include_legend=False, linewidth=1.0, ylabel=None, returns_name=MC_NAME):
+def plot_pdf(plot_objs, returns=None, bandwidth=0.08, figsize=(5,4), show_hist=False, x_spacing=0.03, N=32, save_to=None, hist_alpha=0.2, include_legend=False, linewidth=1.0, ylabel=None, returns_name=MC_NAME, color_idx=0):
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=figsize)
     if ylabel is None:
@@ -36,8 +36,8 @@ def plot_pdf(plot_objs, returns=None, bandwidth=0.08, figsize=(5,4), show_hist=F
         if show_hist: ax.hist(returns, bins=bins, density=True, alpha=hist_alpha, color=COLORS[0])
     
     for idx, (quantile, name) in enumerate(plot_objs):
-        ax.plot(Xs, get_kde(quantile, bandwidth=bandwidth)(Xs), label=name, color=COLORS[idx+1], linewidth=linewidth)
-        if show_hist: ax.hist(quantile, bins=bins, density=True, alpha=hist_alpha, color=COLORS[idx+1])
+        ax.plot(Xs, get_kde(quantile, bandwidth=bandwidth)(Xs), label=name, color=COLORS[idx+1+color_idx], linewidth=linewidth)
+        if show_hist: ax.hist(quantile, bins=bins, density=True, alpha=hist_alpha, color=COLORS[idx+1+color_idx])
 
     ax.set_xlim((Xs.min(), Xs.max()))
     ax.set_xlabel("Returns", fontweight="bold", fontsize="large")
@@ -215,21 +215,12 @@ def plot_map(qtable, params, is_policy=False, V=None):
     from seaborn import heatmap, color_palette
     arrow_directions = {0: "↑", 1: "→", 2: "↓", 3: "←"}
     
-    # qtable_val_max = qtable.max(axis=1).reshape(shape)
-    # qtable_best_action = qtable.argmax(1).reshape(shape)
-    # qtable_directions = np.empty(qtable_best_action.flatten().shape, dtype=str)
-
-    # for idx, val in enumerate(qtable_best_action.flatten()):
-    #     if not np.allclose(qtable[idx], 0.0):
-    #         qtable_directions[idx] = arrow_directions[val]
-    # qtable_directions = qtable_directions.reshape(shape)
-
     fig, ax = plt.subplots(figsize=(params.shape[1], params.shape[0]))
 
     if is_policy:
         annot = []
         for actions in qtable:
-            if max(actions) == 1 / params.nA:
+            if max(actions) == 1 / params.nA or max(actions) == 0.0:
                 annot.append(" ")
             else:
                 annot.append(arrow_directions[np.argmax(actions)])
@@ -237,8 +228,15 @@ def plot_map(qtable, params, is_policy=False, V=None):
         q = np.zeros(params.shape)
         fs = "20"
     else:
-        q = qtable.reshape(params.shape)
-        annot=q.round(2)
+        annot = []
+        q = qtable.max(1)
+        for qval in q:
+            if qval == 0.0:
+                annot.append(" ")
+            else:
+                annot.append(qval.round(2))
+        annot = np.asarray(annot).reshape(params.shape)
+        q = q.reshape(params.shape)
         fs = "15"
     
     heatmap = heatmap(
@@ -253,7 +251,9 @@ def plot_map(qtable, params, is_policy=False, V=None):
         annot_kws={"fontsize": fs, "color": "black"},
         square=True,
     )
-    heatmap.set(title="Learned Q-values\nArrows represent best action")
+    titler = "Learned Q-values"
+    titler += "\nArrows represent best action" if is_policy else ""
+    heatmap.set(title=titler)
 
     for _, spine in ax.spines.items():
         spine.set_visible(True)
