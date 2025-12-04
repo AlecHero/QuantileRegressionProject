@@ -244,6 +244,7 @@ def MonteCarlo(env, policy, gamma, s_init=None, a_init=None, total_episodes=5_00
 
 
 class MixtureOfGaussians:
+    # initially based on code from https://mtomassoli.github.io/2017/12/08/distributional_rl
     def __init__(self, pis, mus, sigmas, rng:np.random.Generator):
         self.pis = np.array(pis)
         self.mus = np.array(mus)
@@ -262,6 +263,7 @@ class MixtureOfGaussians:
                        for pi, mu, s in zip(self.pis, self.mus, self.sigmas)], axis=0)
 
     def ppf(self, q, x_min=None, x_max=None, num_points=100_000):
+        # generated with chatgpt:
         from scipy.interpolate import interp1d
         x_min = self.mus.min() - 5 * self.sigmas.max()
         x_max = self.mus.max() + 5 * self.sigmas.max()
